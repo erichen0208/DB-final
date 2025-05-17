@@ -1,0 +1,33 @@
+{
+  "dimensions": 2,
+  "operation": "insert",
+  "operationId": 1,
+  "treeSize": 2,
+  "target": {
+    "min": [82.7659, 38.2869],
+    "max": [88.6755, 40.3072]
+  },
+  "treeNodes": [
+    {
+      "id": 0,
+      "level": 0,
+      "isLeaf": true,
+      "min": [34.8702, 11.1706],
+      "max": [88.6755, 40.3072],
+      "children": [],
+      "dataPointIds": [1000, 1001]
+    }
+  ],
+  "dataPoints": [
+    {
+      "id": 1000,
+      "min": [34.8702, 11.1706],
+      "max": [43.1947, 19.9289]
+    },
+    {
+      "id": 1001,
+      "min": [82.7659, 38.2869],
+      "max": [88.6755, 40.3072]
+    }
+  ]
+}
