@@ -14,7 +14,7 @@ pip install -r requirements.txt
 2. C++:
 
 ```sh
-cd app
+cd backend/app
 g++ -std=c++17 -o rtree_test test.cpp
 ```
 
@@ -30,6 +30,7 @@ npm install
 1. Run `rtree_test` to get a new directory **frames**, which contains the tree structure of each operation.
 
 ```
+cd backend/app
 ./rtree-test
 ```
 
@@ -43,5 +44,6 @@ python server.py
 3. Run React
 
 ```sh
+cd frontend
 npm run dev
 ```

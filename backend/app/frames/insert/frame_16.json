@@ -1,0 +1,256 @@
+{
+  "operation": "insert",
+  "operationId": 16,
+  "treeSize": 17,
+  "target": {
+    "min": [121.575, 25.0913],
+    "max": [121.575, 25.0913]
+  },
+  "treeNodes": [
+    {
+      "id": 0,
+      "level": 1,
+      "isLeaf": false,
+      "current_crowd": 48,
+      "min": [121.502, 25.0215],
+      "max": [121.593, 25.0913],
+      "childIds": [1, 2, 3]
+    },
+    {
+      "id": 1,
+      "level": 0,
+      "isLeaf": true,
+      "current_crowd": 39,
+      "min": [121.537, 25.0215],
+      "max": [121.593, 25.0647],
+      "childIds": [],
+      "dataPointIds": [0, 2, 4, 7, 9, 12, 15]
+    },
+    {
+      "id": 2,
+      "level": 0,
+      "isLeaf": true,
+      "current_crowd": 64,
+      "min": [121.502, 25.0786],
+      "max": [121.575, 25.0913],
+      "childIds": [],
+      "dataPointIds": [5, 6, 8, 10, 14, 16]
+    },
+    {
+      "id": 3,
+      "level": 0,
+      "isLeaf": true,
+      "current_crowd": 43,
+      "min": [121.512, 25.0298],
+      "max": [121.534, 25.0661],
+      "childIds": [],
+      "dataPointIds": [1, 3, 11, 13]
+    }
+  ],
+  "dataPoints": [
+    {
+      "id": 0,
+      "level": -1,
+      "min": [121.554, 25.0647],
+      "max": [121.554, 25.0647],
+      "cafeId": 0,
+      "name": "Cafe_0",
+      "rating": 3.3,
+      "lat": 25.0647,
+      "lon": 121.554,
+      "current_crowd": 25
+    },
+    {
+      "id": 2,
+      "level": -1,
+      "min": [121.587, 25.0344],
+      "max": [121.587, 25.0344],
+      "cafeId": 2,
+      "name": "Cafe_2",
+      "rating": 3.9,
+      "lat": 25.0344,
+      "lon": 121.587,
+      "current_crowd": 45
+    },
+    {
+      "id": 4,
+      "level": -1,
+      "min": [121.549, 25.0431],
+      "max": [121.549, 25.0431],
+      "cafeId": 4,
+      "name": "Cafe_4",
+      "rating": 4.8,
+      "lat": 25.0431,
+      "lon": 121.549,
+      "current_crowd": 22
+    },
+    {
+      "id": 7,
+      "level": -1,
+      "min": [121.537, 25.0215],
+      "max": [121.537, 25.0215],
+      "cafeId": 7,
+      "name": "Cafe_7",
+      "rating": 3.7,
+      "lat": 25.0215,
+      "lon": 121.537,
+      "current_crowd": 38
+    },
+    {
+      "id": 9,
+      "level": -1,
+      "min": [121.557, 25.0449],
+      "max": [121.557, 25.0449],
+      "cafeId": 9,
+      "name": "Cafe_9",
+      "rating": 3.6,
+      "lat": 25.0449,
+      "lon": 121.557,
+      "current_crowd": 42
+    },
+    {
+      "id": 12,
+      "level": -1,
+      "min": [121.593, 25.0519],
+      "max": [121.593, 25.0519],
+      "cafeId": 12,
+      "name": "Cafe_12",
+      "rating": 4,
+      "lat": 25.0519,
+      "lon": 121.593,
+      "current_crowd": 47
+    },
+    {
+      "id": 15,
+      "level": -1,
+      "min": [121.564, 25.047],
+      "max": [121.564, 25.047],
+      "cafeId": 15,
+      "name": "Cafe_15",
+      "rating": 4.4,
+      "lat": 25.047,
+      "lon": 121.564,
+      "current_crowd": 56
+    },
+    {
+      "id": 5,
+      "level": -1,
+      "min": [121.515, 25.0842],
+      "max": [121.515, 25.0842],
+      "cafeId": 5,
+      "name": "Cafe_5",
+      "rating": 4.2,
+      "lat": 25.0842,
+      "lon": 121.515,
+      "current_crowd": 75
+    },
+    {
+      "id": 6,
+      "level": -1,
+      "min": [121.556, 25.087],
+      "max": [121.556, 25.087],
+      "cafeId": 6,
+      "name": "Cafe_6",
+      "rating": 4.2,
+      "lat": 25.087,
+      "lon": 121.556,
+      "current_crowd": 83
+    },
+    {
+      "id": 8,
+      "level": -1,
+      "min": [121.547, 25.0786],
+      "max": [121.547, 25.0786],
+      "cafeId": 8,
+      "name": "Cafe_8",
+      "rating": 4.3,
+      "lat": 25.0786,
+      "lon": 121.547,
+      "current_crowd": 55
+    },
+    {
+      "id": 10,
+      "level": -1,
+      "min": [121.53, 25.0866],
+      "max": [121.53, 25.0866],
+      "cafeId": 10,
+      "name": "Cafe_10",
+      "rating": 4.2,
+      "lat": 25.0866,
+      "lon": 121.53,
+      "current_crowd": 80
+    },
+    {
+      "id": 14,
+      "level": -1,
+      "min": [121.502, 25.0875],
+      "max": [121.502, 25.0875],
+      "cafeId": 14,
+      "name": "Cafe_14",
+      "rating": 5,
+      "lat": 25.0875,
+      "lon": 121.502,
+      "current_crowd": 7
+    },
+    {
+      "id": 16,
+      "level": -1,
+      "min": [121.575, 25.0913],
+      "max": [121.575, 25.0913],
+      "cafeId": 16,
+      "name": "Cafe_16",
+      "rating": 3.4,
+      "lat": 25.0913,
+      "lon": 121.575,
+      "current_crowd": 89
+    },
+    {
+      "id": 1,
+      "level": -1,
+      "min": [121.512, 25.0495],
+      "max": [121.512, 25.0495],
+      "cafeId": 1,
+      "name": "Cafe_1",
+      "rating": 4.7,
+      "lat": 25.0495,
+      "lon": 121.512,
+      "current_crowd": 45
+    },
+    {
+      "id": 3,
+      "level": -1,
+      "min": [121.522, 25.0618],
+      "max": [121.522, 25.0618],
+      "cafeId": 3,
+      "name": "Cafe_3",
+      "rating": 4.5,
+      "lat": 25.0618,
+      "lon": 121.522,
+      "current_crowd": 81
+    },
+    {
+      "id": 11,
+      "level": -1,
+      "min": [121.534, 25.0661],
+      "max": [121.534, 25.0661],
+      "cafeId": 11,
+      "name": "Cafe_11",
+      "rating": 4.2,
+      "lat": 25.0661,
+      "lon": 121.534,
+      "current_crowd": 47
+    },
+    {
+      "id": 13,
+      "level": -1,
+      "min": [121.516, 25.0298],
+      "max": [121.516, 25.0298],
+      "cafeId": 13,
+      "name": "Cafe_13",
+      "rating": 4.7,
+      "lat": 25.0298,
+      "lon": 121.516,
+      "current_crowd": 1
+    }
+  ]
+}

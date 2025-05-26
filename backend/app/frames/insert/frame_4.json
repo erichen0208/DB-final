@@ -1,0 +1,83 @@
+{
+  "operation": "insert",
+  "operationId": 4,
+  "treeSize": 5,
+  "target": {
+    "min": [121.549, 25.0431],
+    "max": [121.549, 25.0431]
+  },
+  "treeNodes": [
+    {
+      "id": 0,
+      "level": 0,
+      "isLeaf": true,
+      "current_crowd": 43,
+      "min": [121.512, 25.0344],
+      "max": [121.587, 25.0647],
+      "childIds": [],
+      "dataPointIds": [0, 1, 2, 3, 4]
+    }
+  ],
+  "dataPoints": [
+    {
+      "id": 0,
+      "level": -1,
+      "min": [121.554, 25.0647],
+      "max": [121.554, 25.0647],
+      "cafeId": 0,
+      "name": "Cafe_0",
+      "rating": 3.3,
+      "lat": 25.0647,
+      "lon": 121.554,
+      "current_crowd": 25
+    },
+    {
+      "id": 1,
+      "level": -1,
+      "min": [121.512, 25.0495],
+      "max": [121.512, 25.0495],
+      "cafeId": 1,
+      "name": "Cafe_1",
+      "rating": 4.7,
+      "lat": 25.0495,
+      "lon": 121.512,
+      "current_crowd": 45
+    },
+    {
+      "id": 2,
+      "level": -1,
+      "min": [121.587, 25.0344],
+      "max": [121.587, 25.0344],
+      "cafeId": 2,
+      "name": "Cafe_2",
+      "rating": 3.9,
+      "lat": 25.0344,
+      "lon": 121.587,
+      "current_crowd": 45
+    },
+    {
+      "id": 3,
+      "level": -1,
+      "min": [121.522, 25.0618],
+      "max": [121.522, 25.0618],
+      "cafeId": 3,
+      "name": "Cafe_3",
+      "rating": 4.5,
+      "lat": 25.0618,
+      "lon": 121.522,
+      "current_crowd": 81
+    },
+    {
+      "id": 4,
+      "level": -1,
+      "min": [121.549, 25.0431],
+      "max": [121.549, 25.0431],
+      "cafeId": 4,
+      "name": "Cafe_4",
+      "rating": 4.8,
+      "lat": 25.0431,
+      "lon": 121.549,
+      "current_crowd": 22
+    }
+  ]
+}

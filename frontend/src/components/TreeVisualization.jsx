@@ -1,376 +1,455 @@
-// src/components/TreeVisualization.jsx
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState, use } from "react";
 import * as d3 from "d3";
 
-function TreeVisualization({ data }) {
+function TreeVisualization({ data, onNodeHover, activeSearchNode, mode }) {
   const svgRef = useRef();
+  const [visitedNodes, setVisitedNodes] = useState(new Set());
 
   useEffect(() => {
-    if (!data || !data.treeNodes || data.treeNodes.length === 0) return;
+    setVisitedNodes(new Set());
+  }, [mode]);
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll("*").remove();
+  // Effect to track visited nodes
+  useEffect(() => {
+    if (activeSearchNode) {
+      setVisitedNodes((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(activeSearchNode.id);
+        // Add a composite key that includes both ID and node type
+        newSet.add(
+          activeSearchNode.isDataPoint
+            ? "d_" + activeSearchNode.id
+            : "t_" + activeSearchNode.id
+        );
+        return newSet;
+      });
+    }
+  }, [activeSearchNode]);
 
-    const container = svg.node().parentElement;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+  useEffect(() => {
+    if (!data || !data.treeNodes || data.treeNodes.length === 0) {
+      console.log("No tree nodes data available");
+      return;
+    }
 
-    // Process the tree structure to handle both internal nodes and data points
-    const nodesById = {};
+    try {
+      const svg = d3.select(svgRef.current);
+      svg.selectAll("*").remove();
 
-    // First pass: create node objects for tree nodes
-    data.treeNodes.forEach((node) => {
-      nodesById[node.id] = {
-        ...node,
-        children: [],
-      };
-    });
+      const container = svg.node().parentElement;
+      if (!container) {
+        console.log("Container element not found");
+        return;
+      }
 
-    // Also add data points to the nodes dictionary
-    if (data.dataPoints) {
-      data.dataPoints.forEach((dataPoint) => {
-        nodesById[dataPoint.id] = {
-          ...dataPoint,
-          level: -1, // Ensure data points are marked as level -1
-          isLeaf: true,
-          children: [],
+      let tooltip = d3.select("body").select(".tree-tooltip");
+      if (tooltip.empty()) {
+        tooltip = d3
+          .select("body")
+          .append("div")
+          .attr("class", "tree-tooltip")
+          .style("position", "absolute")
+          .style("visibility", "hidden")
+          .style("background-color", "white")
+          .style("border", "1px solid #ddd")
+          .style("border-radius", "4px")
+          .style("padding", "8px")
+          .style("font-size", "12px")
+          .style("box-shadow", "0 2px 5px rgba(0,0,0,0.2)")
+          .style("z-index", "1000")
+          .style("pointer-events", "none");
+      }
+
+      // Set fixed dimensions if container dimensions are zero
+      const width = container.clientWidth || 600;
+      const height = container.clientHeight || 400;
+
+      // STEP 1: Create a map of all nodes first
+      const nodesById = {};
+
+      data.treeNodes.forEach((node) => {
+        nodesById[`t_${node.id}`] = {
+          ...node,
+          children: [], // Will be populated with actual node references
+          nodeType: "tree",
+          isDataPoint: false,
         };
       });
-    }
 
-    // Second pass: build child relationships from tree nodes
-    data.treeNodes.forEach((node) => {
-      // Handle regular parent-child relationships between tree nodes
-      if (node.children && node.children.length > 0) {
-        node.children.forEach((childId) => {
-          if (nodesById[childId]) {
-            nodesById[node.id].children.push(nodesById[childId]);
-          }
-        });
-      }
-
-      // Handle data point relationships (leaf nodes to their data points)
-      if (node.dataPointIds && node.dataPointIds.length > 0) {
-        node.dataPointIds.forEach((dataId) => {
-          if (nodesById[dataId]) {
-            nodesById[node.id].children.push(nodesById[dataId]);
-          }
-        });
-      }
-    });
-
-    // Find the root node (the one with highest level)
-    let rootNode = null;
-    let maxLevel = -1;
-
-    data.treeNodes.forEach((node) => {
-      if (node.level > maxLevel) {
-        maxLevel = node.level;
-        rootNode = node;
-      }
-    });
-
-    if (!rootNode) return;
-
-    // Create the hierarchical data structure
-    const root = d3.hierarchy(nodesById[rootNode.id], (d) => d.children);
-
-    // Create a tree layout with proper orientation
-    const treeLayout = d3.tree().size([width - 100, height - 100]);
-
-    const treeData = treeLayout(root);
-
-    // Create main group for the visualization with a small margin
-    const g = svg.append("g").attr("transform", `translate(50, 30)`);
-
-    // Add links between nodes
-    g.selectAll("path")
-      .data(treeData.links())
-      .enter()
-      .append("path")
-      .attr(
-        "d",
-        d3
-          .linkVertical()
-          .x((d) => d.x)
-          .y((d) => d.y)
-      )
-      .attr("fill", "none")
-      .attr("stroke", (d) => {
-        // Highlight search paths
-        if (data.operation && data.operation.includes("search")) {
-          if (isNodeInSearchPath(d.source.data.id, d.target.data.id, data)) {
-            return "red";
-          }
-        }
-        // Differentiate links to data points
-        if (d.target.data.level === -1) {
-          return "#4CAF50"; // Green for data point links
-        }
-        return "#ccc";
-      })
-      .attr("stroke-width", (d) => {
-        if (data.operation && data.operation.includes("search")) {
-          if (isNodeInSearchPath(d.source.data.id, d.target.data.id, data)) {
-            return 2.5;
-          }
-        }
-        return d.target.data.level === -1 ? 1 : 1.5;
-      })
-      .attr("stroke-dasharray", (d) => {
-        return d.target.data.level === -1 ? "3,3" : null; // Dashed line for data point links
+      data.dataPoints.forEach((point) => {
+        nodesById[`d_${point.id}`] = {
+          ...point,
+          children: [],
+          nodeType: "data",
+          isDataPoint: true,
+        };
       });
 
-    // Create a color scale for node levels
-    const colorScale = d3
-      .scaleSequential(d3.interpolateViridis)
-      .domain([0, maxLevel]);
+      // STEP 2: Build the tree structure with correct parent-child relationships
+      data.treeNodes.forEach((node) => {
+        const treeNodeKey = `t_${node.id}`;
 
-    // Add nodes as boxes
-    const nodes = g
-      .selectAll(".node")
-      .data(treeData.descendants())
-      .enter()
-      .append("g")
-      .attr("class", "node")
-      .attr("transform", (d) => `translate(${d.x},${d.y})`);
+        if (
+          node.childIds &&
+          Array.isArray(node.childIds) &&
+          node.childIds.length > 0
+        ) {
+          node.childIds.forEach((childId) => {
+            const childKey = `t_${childId}`;
+            if (nodesById[childKey]) {
+              nodesById[treeNodeKey].children.push(nodesById[childKey]);
+            } else {
+              console.log(`Child ID ${childId} not found for node ${node.id}`);
+            }
+          });
+        }
 
-    // Add node rectangles
-    nodes
-      .append("rect")
-      .attr("x", (d) => (d.data.level === -1 ? -30 : -40)) // Smaller rectangles for data points
-      .attr("y", (d) => (d.data.level === -1 ? -15 : -20))
-      .attr("width", (d) => (d.data.level === -1 ? 60 : 80))
-      .attr("height", (d) => (d.data.level === -1 ? 30 : 40))
-      .attr("rx", 3)
-      .attr("ry", 3)
-      .attr("fill", (d) => {
+        // Connect data point children for leaf nodes
         if (
-          data.operation &&
-          data.operation.includes("search_end") &&
-          d.data.id === data.operationId
+          node.dataPointIds &&
+          Array.isArray(node.dataPointIds) &&
+          node.dataPointIds.length > 0
         ) {
-          return "orangered";
+          node.dataPointIds.forEach((dataId) => {
+            const dataPointKey = `d_${dataId}`;
+            if (nodesById[dataPointKey]) {
+              nodesById[treeNodeKey].children.push(nodesById[dataPointKey]);
+            } else {
+              console.log(
+                `Data point ID ${dataId} not found for node ${node.id}`
+              );
+            }
+          });
         }
-        if (d.data.level === -1) {
-          return "#4CAF50"; // Green for data points
-        }
-        return colorScale(d.data.level);
-      })
-      .attr("stroke", (d) => {
-        if (
-          data.operation &&
-          data.operation.includes("search") &&
-          isNodeInSearchPath(d.data.id, null, data)
-        ) {
-          return "red";
-        }
-        return "#555";
-      })
-      .attr("stroke-width", (d) => {
-        if (
-          data.operation &&
-          data.operation.includes("search") &&
-          isNodeInSearchPath(d.data.id, null, data)
-        ) {
-          return 2.5;
-        }
-        return 1;
       });
 
-    // Add node labels
-    nodes
-      .append("text")
-      .attr("dy", "0.3em")
-      .attr("text-anchor", "middle")
-      .attr("fill", "white")
-      .style("font-size", (d) => (d.data.level === -1 ? "10px" : "11px"))
-      .style("font-weight", (d) => {
-        if (
-          data.operation &&
-          data.operation.includes("search") &&
-          isNodeInSearchPath(d.data.id, null, data)
-        ) {
-          return "bold";
+      // STEP 3: Find the root node (highest level node)
+      let rootNode = nodesById["t_0"];
+
+      // STEP 4: Create D3 hierarchy from our custom tree structure
+
+      const root = d3.hierarchy(rootNode, (d) => {
+        if (d.children && d.children.length > 0) {
+          return d.children;
         }
-        return "normal";
-      })
-      .text((d) => `ID:${d.data.id}`);
+        return null;
+      });
 
-    // Add level labels for all nodes except data points
-    nodes
-      .filter((d) => d.data.level !== -1)
-      .append("text")
-      .attr("dy", "1.5em")
-      .attr("text-anchor", "middle")
-      .attr("fill", "white")
-      .style("font-size", "9px")
-      .text((d) => (d.data.level === 0 ? "Leaf" : `L:${d.data.level}`));
+      // Create tree layout with fixed size
+      const treeLayout = d3.tree().size([width - 100, height - 80]);
+      const treeData = treeLayout(root);
 
-    // Add "DATA" label to the data points
-    nodes
-      .filter((d) => d.data.level === -1)
-      .append("text")
-      .attr("dy", "1.5em")
-      .attr("text-anchor", "middle")
-      .attr("fill", "white")
-      .style("font-size", "8px")
-      .style("font-weight", "bold")
-      .text("DATA");
+      // Create visualization group
+      const g = svg
+        .append("g")
+        .attr("transform", `translate(50, 40)`)
+        .attr("class", "tree-container");
 
-    // Add "FOUND" label to the target node if it's the final search result
-    nodes
-      .filter(
-        (d) =>
-          data.operation &&
-          data.operation.includes("search_end") &&
-          d.data.id === data.operationId
-      )
-      .append("text")
-      .attr("dy", "2.8em")
-      .attr("text-anchor", "middle")
-      .attr("fill", "white")
-      .style("font-size", "9px")
-      .style("font-weight", "bold")
-      .text("FOUND");
+      // Draw links between nodes
+      g.selectAll(".link")
+        .data(treeData.links())
+        .enter()
+        .append("path")
+        .attr("class", "link")
+        .attr(
+          "d",
+          d3
+            .linkVertical()
+            .x((d) => d.x)
+            .y((d) => d.y)
+        )
+        .attr("fill", "none")
+        .attr("stroke", (d) => {
+          // Style links to data points differently
+          return d.target.data.isDataPoint ? "#4CAF50" : "#ccc";
+        })
+        .attr("stroke-width", 1.5)
+        .attr("stroke-dasharray", (d) => {
+          // Dashed lines for connections to data points
+          return d.target.data.isDataPoint ? "3,3" : null;
+        });
 
-    // Add a legend
-    const legend = svg
-      .append("g")
-      .attr("transform", `translate(${width - 100}, 20)`);
+      // Create a color scale for node levels
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-    // Add rectangles for each level
-    for (let i = maxLevel; i >= 0; i--) {
-      legend
+      // Draw nodes
+      const nodes = g
+        .selectAll(".node")
+        .data(treeData.descendants())
+        .enter()
+        .append("g")
+        .attr(
+          "class",
+          (d) => `node ${d.data.isDataPoint ? "data-node" : "tree-node"}`
+        )
+        .attr("transform", (d) => `translate(${d.x},${d.y})`)
+        .on("mouseenter", function (event, d) {
+          // Highlight the current node
+          d3.select(this)
+            .select("rect")
+            .attr("stroke", "#ff8800")
+            .attr("stroke-width", 3);
+
+          // Show tooltip for data points
+          if (d.data.isDataPoint) {
+            const cafeData = d.data;
+            let tooltipContent = `
+              <div style="font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:4px; margin-bottom:4px">
+                Cafe ID: ${cafeData.cafeId || cafeData.id}
+              </div>
+              <div><strong>Location:</strong> ${cafeData.lon?.toFixed(
+                5
+              )}, ${cafeData.lat?.toFixed(5)}</div>
+            `;
+
+            if (cafeData.rating !== undefined) {
+              tooltipContent += `<div><strong>Rating:</strong> ${cafeData.rating.toFixed(
+                1
+              )}/5.0</div>`;
+            }
+
+            if (cafeData.current_crowd !== undefined) {
+              tooltipContent += `<div><strong>Current crowd:</strong> ${cafeData.current_crowd} people</div>`;
+            }
+
+            if (cafeData.name) {
+              tooltipContent =
+                `
+                <div style="font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:4px; margin-bottom:4px">
+                  ${cafeData.name} (ID: ${cafeData.cafeId || cafeData.id})
+                </div>` +
+                tooltipContent.split("</div>").slice(1).join("</div>");
+            }
+
+            const nodePosition = this.getBoundingClientRect();
+
+            tooltip
+              .html(tooltipContent)
+              .style("visibility", "visible")
+              .style("left", nodePosition.left - 150 + "px") // Position to the left of node
+              .style("top", nodePosition.top - 110 + "px"); // Position above the node
+          } else {
+            const cafeData = d.data;
+            let tooltipContent = `
+              <div style="font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:4px; margin-bottom:4px">
+                Cafe ID: ${cafeData.id}
+              </div>
+              <div><strong>Location (bottom-left):</strong> ${cafeData.min[0]?.toFixed(
+                5
+              )}, ${cafeData.min[1]?.toFixed(5)}</div>
+            `;
+
+            if (cafeData.current_crowd !== undefined) {
+              tooltipContent += `<div><strong>Current crowd:</strong> ${cafeData.current_crowd} people</div>`;
+            }
+
+            if (cafeData.id) {
+              tooltipContent =
+                `
+                <div style="font-weight:bold; border-bottom:1px solid #ddd; padding-bottom:4px; margin-bottom:4px">
+                  Node ID: ${cafeData.id}
+                </div>` +
+                tooltipContent.split("</div>").slice(1).join("</div>");
+            }
+
+            const nodePosition = this.getBoundingClientRect();
+
+            tooltip
+              .html(tooltipContent)
+              .style("visibility", "visible")
+              .style("left", nodePosition.left - 150 + "px") // Position to the left of node
+              .style("top", nodePosition.top - 110 + "px"); // Position above the node
+          }
+
+          // Call the hover callback with node data for the spatial view
+          if (onNodeHover && d.data) {
+            onNodeHover({
+              id: d.data.originalId || d.data.id,
+              type: d.data.isDataPoint ? "data" : "tree",
+              min: d.data.min,
+              max: d.data.max,
+              level: d.data.level,
+            });
+          }
+        })
+        .on("mouseleave", function () {
+          // Reset highlight on mouse leave
+          d3.select(this)
+            .select("rect")
+            .attr("stroke", "#555")
+            .attr("stroke-width", 1);
+
+          // Hide tooltip
+          tooltip.style("visibility", "hidden");
+
+          // Clear the highlight in spatial view
+          if (onNodeHover) {
+            onNodeHover(null);
+          }
+        });
+      // Add node rectangles
+      nodes
         .append("rect")
-        .attr("x", 0)
-        .attr("y", (maxLevel - i) * 25)
-        .attr("width", 20)
-        .attr("height", 20)
-        .attr("fill", colorScale(i));
+        .attr("x", (d) => (d.data.isDataPoint ? -30 : -40))
+        .attr("y", (d) => (d.data.isDataPoint ? -15 : -20))
+        .attr("width", (d) => (d.data.isDataPoint ? 60 : 80))
+        .attr("height", (d) => (d.data.isDataPoint ? 30 : 40))
+        .attr("rx", 3)
+        .attr("ry", 3)
+        .attr("fill", (d) => {
+          if (d.data.isDataPoint) {
+            return "#4CAF50"; // Green for data points
+          }
+          return colorScale(d.data.level || 0);
+        })
+        .attr("stroke", "#555")
+        .attr("stroke-width", 1);
 
-      legend
-        .append("text")
-        .attr("x", 25)
-        .attr("y", (maxLevel - i) * 25 + 14)
-        .style("font-size", "12px")
-        .attr("fill", "#333")
-        .text(i === 0 ? "Leaf Nodes" : `Level ${i}`);
-    }
-
-    // Add data point to legend
-    legend
-      .append("rect")
-      .attr("x", 0)
-      .attr("y", (maxLevel + 1) * 25)
-      .attr("width", 20)
-      .attr("height", 20)
-      .attr("fill", "#4CAF50");
-
-    legend
-      .append("text")
-      .attr("x", 25)
-      .attr("y", (maxLevel + 1) * 25 + 14)
-      .style("font-size", "12px")
-      .attr("fill", "#333")
-      .text("Data Points");
-
-    // Add search path to legend if relevant
-    if (data.operation && data.operation.includes("search")) {
-      const searchLegendY = (maxLevel + 2) * 25;
-
-      legend
+      nodes
         .append("rect")
-        .attr("x", 0)
-        .attr("y", searchLegendY)
-        .attr("width", 20)
-        .attr("height", 20)
-        .attr("fill", "red")
-        .attr("opacity", 0.6);
-
-      legend
+        .attr("x", (d) => (d.data.isDataPoint ? -30 : -40))
+        .attr("y", (d) => (d.data.isDataPoint ? -15 : -20))
+        .attr("width", (d) => (d.data.isDataPoint ? 60 : 80))
+        .attr("height", (d) => (d.data.isDataPoint ? 30 : 40))
+        .attr("rx", 3)
+        .attr("ry", 3)
+        .attr("fill", (d) => {
+          if (d.data.isDataPoint) {
+            return "#4CAF50"; // Green for data points
+          }
+          return colorScale(d.data.level || 0);
+        })
+        .attr("stroke", (d) => {
+          // Current active search node - compare both id and isDataPoint
+          if (
+            mode === "search" &&
+            activeSearchNode &&
+            d.data.id === activeSearchNode.id &&
+            d.data.isDataPoint === (activeSearchNode.isDataPoint === true)
+          ) {
+            return "#FF0000"; // Bright red for active node
+          }
+          // Previously visited nodes in search path - compare both id and isDataPoint
+          else if (
+            mode === "search" &&
+            visitedNodes.has(d.data.id) &&
+            visitedNodes.has(
+              d.data.isDataPoint ? "d_" + d.data.id : "t_" + d.data.id
+            )
+          ) {
+            return "#FF9800"; // Orange for previously visited nodes
+          }
+        })
+        .attr("stroke-width", (d) => {
+          // Make active and visited nodes have thicker borders
+          if (
+            (activeSearchNode &&
+              d.data.id === activeSearchNode.id &&
+              d.data.isDataPoint === (activeSearchNode.isDataPoint === true)) ||
+            (visitedNodes.has(d.data.id) &&
+              visitedNodes.has(
+                d.data.isDataPoint ? "d_" + d.data.id : "t_" + d.data.id
+              ))
+          ) {
+            return 3;
+          }
+          return 1;
+        })
+        .attr("stroke-dasharray", (d) => {
+          // Optional: Make active search node have solid border and visited nodes have dashed borders
+          if (
+            activeSearchNode &&
+            d.data.id === activeSearchNode.id &&
+            d.data.isDataPoint === (activeSearchNode.isDataPoint === true)
+          ) {
+            return null; // Solid line for active node
+          } else if (
+            visitedNodes.has(d.data.id) &&
+            visitedNodes.has(
+              d.data.isDataPoint ? "d_" + d.data.id : "t_" + d.data.id
+            )
+          ) {
+            return "5,3"; // Dashed line for visited nodes
+          }
+          return null; // Regular solid line for other nodes
+        });
+      // Add node ID labels using the original ID
+      nodes
         .append("text")
-        .attr("x", 25)
-        .attr("y", searchLegendY + 14)
-        .style("font-size", "12px")
-        .attr("fill", "#333")
-        .text("Search Path");
+        .attr("dy", "0.3em")
+        .attr("text-anchor", "middle")
+        .attr("fill", "white")
+        .style("font-size", (d) => (d.data.isDataPoint ? "10px" : "11px"))
+        .text((d) => `ID:${d.data.id}`);
+      // Add level labels for tree nodes only
+      nodes
+        .filter((d) => !d.data.isDataPoint)
+        .append("text")
+        .attr("dy", "1.5em")
+        .attr("text-anchor", "middle")
+        .attr("fill", "white")
+        .style("font-size", "9px")
+        .text((d) => (d.data.level === 0 ? "Leaf" : `L:${d.data.level}`));
 
-      if (data.operation && data.operation.includes("search_end")) {
+      // Add "DATA" label to data points
+      nodes
+        .filter((d) => d.data.isDataPoint)
+        .append("text")
+        .attr("dy", "1.5em")
+        .attr("text-anchor", "middle")
+        .attr("fill", "white")
+        .style("font-size", "8px")
+        .text("DATA");
+
+      // Add minimal legend
+      const legend = svg
+        .append("g")
+        .attr("transform", `translate(${width - 100}, 20)`);
+
+      // Add level indicators to legend
+      const maxNodeLevel = Math.max(...data.treeNodes.map((n) => n.level));
+      for (let i = 0; i <= maxNodeLevel; i++) {
         legend
           .append("rect")
           .attr("x", 0)
-          .attr("y", searchLegendY + 25)
+          .attr("y", i * 25)
           .attr("width", 20)
           .attr("height", 20)
-          .attr("fill", "orangered")
-          .attr("opacity", 0.8);
+          .attr("fill", colorScale(i));
 
         legend
           .append("text")
           .attr("x", 25)
-          .attr("y", searchLegendY + 25 + 14)
+          .attr("y", i * 25 + 14)
           .style("font-size", "12px")
-          .attr("fill", "#333")
-          .text("Target Node");
-      }
-    }
-  }, [data]);
-
-  // Helper function to check if a node is in the search path
-  function isNodeInSearchPath(nodeId, childId, data) {
-    if (!data.operation || !data.operation.includes("search")) {
-      return false;
-    }
-
-    const targetId = data.operationId;
-
-    // Direct match
-    if (nodeId === targetId || childId === targetId) {
-      return true;
-    }
-
-    // Find the node - could be either a tree node or data point
-    const isDataPoint = nodeId >= 1000; // Simple heuristic based on ID range
-    const allNodes = [...data.treeNodes];
-
-    // Find the node in the appropriate collection
-    const node = allNodes.find((n) => n.id === nodeId);
-    if (!node) return false;
-
-    // Check if target is among direct children
-    if (node.children && node.children.includes(targetId)) return true;
-
-    // Check if target is among data point children
-    if (node.dataPointIds && node.dataPointIds.includes(targetId)) return true;
-
-    // Check if any child leads to target
-    if (!node.children) return false;
-
-    return node.children.some((childId) => {
-      // Find if this child is in tree nodes
-      const childIsInTree = data.treeNodes.some((n) => n.id === childId);
-
-      // For tree nodes
-      if (childIsInTree) {
-        const childNode = data.treeNodes.find((n) => n.id === childId);
-        if (!childNode) return false;
-        if (childNode.id === targetId) return true;
+          .text(i === 0 ? "Leaf Nodes" : `L${i}`);
       }
 
-      // For data points
-      if (!childIsInTree && data.dataPoints) {
-        const dataPoint = data.dataPoints.find((d) => d.id === childId);
-        if (!dataPoint) return false;
-        if (dataPoint.id === targetId) return true;
-      }
+      // Add data points to legend if they exist
+      if (data.dataPoints && data.dataPoints.length > 0) {
+        const dataPointY = (maxNodeLevel + 1) * 25;
+        legend
+          .append("rect")
+          .attr("x", 0)
+          .attr("y", dataPointY)
+          .attr("width", 20)
+          .attr("height", 20)
+          .attr("fill", "#4CAF50");
 
-      return false;
-    });
-  }
+        legend
+          .append("text")
+          .attr("x", 25)
+          .attr("y", dataPointY + 14)
+          .style("font-size", "12px")
+          .text("Data Points");
+      }
+    } catch (error) {
+      console.error("Error rendering tree visualization:", error);
+    }
+  }, [data, activeSearchNode]);
 
   return (
-    <div className="w-full h-full border border-gray-200 rounded">
+    <div className="w-full h-full min-h-[400px] border border-gray-200 rounded">
       <svg ref={svgRef} width="100%" height="100%" className="mx-auto"></svg>
     </div>
   );

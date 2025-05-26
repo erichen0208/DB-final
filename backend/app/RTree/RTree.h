@@ -72,7 +72,12 @@ protected:
   struct TreeStructure;
 
 public:
-
+	// struct SearchPathRecord;
+	struct SearchPathRecord {
+    int id;               // Node or data point ID
+    bool isDataPoint;     // Whether this is a data point or tree node
+    int level;            // Level in the tree (-1 for data points)
+  };
   // These constant must be declared after Branch and before Node struct
   // Stuck up here for MSVC 6 compiler.  NSVC .NET 2003 is much happier.
   enum
@@ -109,8 +114,8 @@ public:
   /// \param a_searchResult Search result array.  Caller should set grow size. Function will reset, not append to array.
   /// \param a_resultCallback Callback function to return result.  Callback should return 'true' to continue searching
   /// \param a_context User context to pass as parameter to a_resultCallback
-  /// \return Returns the number of entries found
-  int Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback) const;
+  /// \return Returns the number of entries found and SearchPathReocrd if returnSearchPath is true.
+  std::pair<int, std::vector<SearchPathRecord>> Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath);
 
   /// Find the nearest neighbors
   /// \param a_min Min of search bounding rect
@@ -138,6 +143,8 @@ public:
   bool Save(RTFileStream& a_stream);
 
   // Get complete tree structure with hierarchy information
+  void LabelNodeId();
+  void LabelNodeWeight();
   TreeStructure GetTreeStructure() const;
 
   /// Iterator is not remove safe.
@@ -329,6 +336,10 @@ protected:
     int m_count;                                  ///< Count
     int m_level;                                  ///< Leaf is zero, others positive
     Branch m_branch[MAXNODES];                    ///< Branch
+
+    // Add these custom parameters
+    int m_id = -1;
+    int m_weight;
   };
 
   /// A link list of nodes for reinsertion after a delete operation
@@ -364,13 +375,22 @@ protected:
     std::vector<ELEMTYPE> min;
     std::vector<ELEMTYPE> max;
     std::vector<int> childIds;
-    DATATYPE data;  // Only meaningful for leaf nodes
-    std::vector<int> dataPointIds;  // New field for leaf nodes to store data point IDs
+    std::vector<int> dataPointIds;
+    int weight;
+    DATATYPE data;  // Only meaningful for data points
   };
   struct TreeStructure {
     std::vector<TreeNodeInfo> treeNodes;   // Regular tree nodes (internal + leaves)
     std::vector<TreeNodeInfo> dataPoints;  // Data points
   };
+	// struct SearchPathRecord {
+  //   int id;               // Node or data point ID
+  //   bool isDataPoint;     // Whether this is a data point or tree node
+  //   int level;            // Level in the tree (-1 for data points)
+	// };
+	bool m_returnSearchPath = false;
+	mutable std::vector<SearchPathRecord> m_searchPath;
+
 
   Node* AllocNode();
   void FreeNode(Node* a_node);
@@ -596,7 +616,7 @@ void RTREE_QUAL::Remove(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMD
 
 
 RTREE_TEMPLATE
-int RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback) const
+std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath)
 {
 #ifdef _DEBUG
   for(int index=0; index<NUMDIMS; ++index)
@@ -616,9 +636,16 @@ int RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDI
   // NOTE: May want to return search result another way, perhaps returning the number of found elements here.
 
   int foundCount = 0;
+	m_returnSearchPath = a_returnSearchPath;
+	m_searchPath.clear();
+
+	// If we are not returning the search path, just call the search function
+	// and return the number of found elements.
+	 
   Search(m_root, &rect, foundCount, callback);
 
-  return foundCount;
+  return std::make_pair(foundCount, m_searchPath);
+  
 }
 
 RTREE_TEMPLATE
@@ -1775,6 +1802,14 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::func
   RTREE_ASSERT(a_node->m_level >= 0);
   RTREE_ASSERT(a_rect);
 
+	if (m_returnSearchPath) {
+		SearchPathRecord record;
+		record.id = a_node->m_id;
+		record.isDataPoint = false;
+		record.level = a_node->m_level;
+		m_searchPath.push_back(record);
+	}
+
   if(a_node->IsInternalNode())
   {
     // This is an internal node in the tree
@@ -1800,10 +1835,18 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::func
         DATATYPE& id = a_node->m_branch[index].m_data;
         ++a_foundCount;
 
-          if(callback && !callback(id))
-          {
-            return false; // Don't continue searching
-          }
+				if (m_returnSearchPath) {
+					SearchPathRecord dataRecord;
+					dataRecord.id = id->id;
+					dataRecord.isDataPoint = true;
+					dataRecord.level = -1;
+					m_searchPath.push_back(dataRecord);
+				}
+
+				if(callback && !callback(id))
+				{
+					return false; // Don't continue searching
+				}
       }
     }
   }
@@ -1848,6 +1891,71 @@ std::vector<typename RTREE_QUAL::Rect> RTREE_QUAL::ListTree() const
   return treeList;
 }
 
+// Using BFS to label nodes with unique IDs (from top to bottom, left to right).
+RTREE_TEMPLATE
+void RTREE_QUAL::LabelNodeId() {
+    int nextId = 0;
+    
+    std::queue<Node*> nodeQueue;
+    nodeQueue.push(m_root);
+    m_root->m_id = nextId++;
+    
+    while (!nodeQueue.empty()) {
+        Node* node = nodeQueue.front();
+        nodeQueue.pop();
+        
+        if (node->IsInternalNode()) {
+            for (int i = 0; i < node->m_count; i++) {
+                Node* child = node->m_branch[i].m_child;
+                child->m_id = nextId++;
+                nodeQueue.push(child);
+            }
+        }
+    }
+}
+
+RTREE_TEMPLATE
+void RTREE_QUAL::LabelNodeWeight() {
+    if (!m_root) {
+        return;
+    }
+
+    // Helper function to recursively calculate weights
+    std::function<int(Node*)> calculateWeight = [&](Node* node) -> int {
+        if (!node) {
+            return 0;
+        }
+
+        if (node->IsLeaf()) {
+            int totalWeight = 0;
+            for (int i = 0; i < node->m_count; ++i) {
+                DATATYPE data = node->m_branch[i].m_data;
+                totalWeight += data->current_crowd;
+            }
+            node->m_weight = node->m_count > 0 ? totalWeight / node->m_count : 0;
+            return node->m_weight;
+        }
+        else {
+            int totalChildWeight = 0;
+            int childCount = 0;
+            
+            for (int i = 0; i < node->m_count; ++i) {
+                Node* child = node->m_branch[i].m_child;
+                if (child) {
+                    totalChildWeight += calculateWeight(child);
+                    childCount++;
+                }
+            }
+            
+            node->m_weight = childCount > 0 ? totalChildWeight / childCount : 0;
+            return node->m_weight;
+        }
+    };
+    
+    calculateWeight(m_root);
+}
+
+// Before using this function, make sure to call LabelNodeId() to assign IDs to nodes.
 RTREE_TEMPLATE
 typename RTREE_QUAL::TreeStructure RTREE_QUAL::GetTreeStructure() const
 {
@@ -1856,33 +1964,23 @@ typename RTREE_QUAL::TreeStructure RTREE_QUAL::GetTreeStructure() const
     if (!m_root) {
         return result;
     }
-    
-    // Maps Node pointers to their assigned IDs
-    std::map<Node*, int> nodeToId;
-    int nextId = 0;
-    
-    // Start data point IDs at a different range to distinguish them
-    int nextDataId = 1000; 
-    
-    // Use BFS to traverse the tree
+
     std::queue<Node*> nodeQueue;
     nodeQueue.push(m_root);
-    nodeToId[m_root] = nextId++;
     
     while (!nodeQueue.empty()) {
         Node* node = nodeQueue.front();
         nodeQueue.pop();
         
         TreeNodeInfo info;
-        info.id = nodeToId[node];
+        info.id = node->m_id;
         info.level = node->m_level;
         info.isLeaf = node->IsLeaf();
+        info.weight = node->m_weight;
         
-        // Store the node's bounding box
+        // Get current node rect
         info.min.resize(NUMDIMS);
         info.max.resize(NUMDIMS);
-        
-        // Initialize with the first branch rect
         if (node->m_count > 0) {
             for (int d = 0; d < NUMDIMS; d++) {
                 info.min[d] = node->m_branch[0].m_rect.m_min[d];
@@ -1903,28 +2001,18 @@ typename RTREE_QUAL::TreeStructure RTREE_QUAL::GetTreeStructure() const
             // Internal node - add actual child nodes
             for (int i = 0; i < node->m_count; i++) {
                 Node* child = node->m_branch[i].m_child;
-                
-                // Assign ID to child if not already assigned
-                if (nodeToId.find(child) == nodeToId.end()) {
-                    nodeToId[child] = nextId++;
-                }
-                
-                // Add child ID to parent's child list
-                info.childIds.push_back(nodeToId[child]);
-                
-                // Add child to processing queue
+                info.childIds.push_back(child->m_id);
                 nodeQueue.push(child);
             }
         } 
         else if (node->IsLeaf()) {
             // Leaf node - create data point entries for each branch
             for (int i = 0; i < node->m_count; i++) {
-                // Create a new data point 
                 TreeNodeInfo dataPoint;
-                dataPoint.id = nextDataId;
-                dataPoint.level = -1;  // Special marker for data points
-                dataPoint.isLeaf = true;  // Data points are considered leaf nodes
-                dataPoint.childIds.clear();  // No children for data points
+                dataPoint.level = -1; 
+                dataPoint.isLeaf = true; 
+                dataPoint.childIds.clear();
+                dataPoint.weight = node->m_branch[i].m_data->current_crowd;
                 
                 // Copy the exact rectangle of this data point
                 dataPoint.min.resize(NUMDIMS);
@@ -1936,19 +2024,13 @@ typename RTREE_QUAL::TreeStructure RTREE_QUAL::GetTreeStructure() const
                 
                 // Store the data
                 dataPoint.data = node->m_branch[i].m_data;
+                dataPoint.id = node->m_branch[i].m_data->id;
                 
-                // Add the data point ID to the leaf node
-                info.dataPointIds.push_back(nextDataId);
-                
-                // Add to data points collection
+                info.dataPointIds.push_back(dataPoint.id);
                 result.dataPoints.push_back(dataPoint);
-                
-                // Increment data point ID
-                nextDataId++;
             }
         }
         
-        // Add this node to the tree nodes collection
         result.treeNodes.push_back(info);
     }
     

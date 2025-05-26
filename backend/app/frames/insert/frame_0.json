@@ -1,0 +1,35 @@
+{
+  "operation": "insert",
+  "operationId": 0,
+  "treeSize": 1,
+  "target": {
+    "min": [121.554, 25.0647],
+    "max": [121.554, 25.0647]
+  },
+  "treeNodes": [
+    {
+      "id": 0,
+      "level": 0,
+      "isLeaf": true,
+      "current_crowd": 25,
+      "min": [121.554, 25.0647],
+      "max": [121.554, 25.0647],
+      "childIds": [],
+      "dataPointIds": [0]
+    }
+  ],
+  "dataPoints": [
+    {
+      "id": 0,
+      "level": -1,
+      "min": [121.554, 25.0647],
+      "max": [121.554, 25.0647],
+      "cafeId": 0,
+      "name": "Cafe_0",
+      "rating": 3.3,
+      "lat": 25.0647,
+      "lon": 121.554,
+      "current_crowd": 25
+    }
+  ]
+}
