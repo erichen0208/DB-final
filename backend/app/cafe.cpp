@@ -75,6 +75,7 @@ void exportSearchPath(std::ofstream& outFile, const std::vector<CafeTree::Search
         outFile << "    {\n";
         outFile << "      \"id\": " << record.id << ",\n";
         outFile << "      \"level\": " << record.level << ",\n";
+        outFile << "      \"weight\": " << record.weight << ",\n";
         outFile << "      \"isDataPoint\": " << (record.isDataPoint ? "true" : "false") << "\n";
         outFile << "    }";
         if (i < searchPath.size() - 1) outFile << ",";
@@ -229,7 +230,7 @@ void exportTreeState(CafeTree &tree, const std::string &operation,
     outFile.close();
 }
 
-void insert_to_rtree(CafeTree &tree, const std::vector<Cafe *> &cafes)
+void insert_to_rtree(CafeTree &tree, const std::vector<Cafe *> &cafes, const std::string& weightMode)
 {
   double global_lat_min = std::numeric_limits<double>::max();
   double global_lat_max = std::numeric_limits<double>::lowest();
@@ -256,7 +257,7 @@ void insert_to_rtree(CafeTree &tree, const std::vector<Cafe *> &cafes)
     
     tree.Insert(min, max, cafe);
     tree.LabelNodeId(); 
-    tree.LabelNodeWeight();
+    tree.LabelNodeWeight(weightMode);
     exportTreeState(tree, "insert");
     operationId++;
     
@@ -308,8 +309,13 @@ void query_area(CafeTree &tree, double lat_min, double lon_min, double lat_max,
   searchId++;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+  std::string weightMode = "mean";
+
+  if (argc >= 2) 
+      weightMode = argv[1];
+
   std::vector<Cafe *> cafes = read_cafes_from_csv("cafes.csv");
 
   if (cafes.empty())
@@ -320,7 +326,7 @@ int main()
 
   CafeTree rtree;
 
-  insert_to_rtree(rtree, cafes);
+  insert_to_rtree(rtree, cafes, weightMode);
 
   query_area(rtree, 25.06, 121.5, 25.0994, 121.56, 50);
 

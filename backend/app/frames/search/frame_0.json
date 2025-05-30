@@ -1411,246 +1411,295 @@
     {
       "id": 0,
       "level": 2,
-      "isDataPoint": false
-    },
-    {
-      "id": 1,
-      "level": 1,
-      "isDataPoint": false
-    },
-    {
-      "id": 4,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 14,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 51,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 74,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 86,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 5,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 17,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 18,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 34,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 72,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 90,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 6,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 10,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 26,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 48,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 50,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 62,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 7,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 30,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 57,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 63,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 76,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 78,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 79,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 85,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 8,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 5,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 19,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 22,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 41,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 70,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 95,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 97,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 2,
-      "level": 1,
-      "isDataPoint": false
-    },
-    {
-      "id": 11,
-      "level": 0,
-      "isDataPoint": false
-    },
-    {
-      "id": 6,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 8,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 40,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 49,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 3,
-      "level": 1,
-      "isDataPoint": false
-    },
-    {
-      "id": 16,
-      "level": 0,
+      "weight": 50,
       "isDataPoint": false
     },
     {
       "id": 3,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 11,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 44,
-      "level": -1,
-      "isDataPoint": true
-    },
-    {
-      "id": 59,
-      "level": -1,
-      "isDataPoint": true
+      "level": 1,
+      "weight": 43,
+      "isDataPoint": false
     },
     {
       "id": 19,
       "level": 0,
+      "weight": 34,
       "isDataPoint": false
     },
     {
       "id": 0,
       "level": -1,
+      "weight": 25,
+      "isDataPoint": true
+    },
+    {
+      "id": 16,
+      "level": 0,
+      "weight": 58,
+      "isDataPoint": false
+    },
+    {
+      "id": 11,
+      "level": -1,
+      "weight": 47,
+      "isDataPoint": true
+    },
+    {
+      "id": 59,
+      "level": -1,
+      "weight": 79,
+      "isDataPoint": true
+    },
+    {
+      "id": 3,
+      "level": -1,
+      "weight": 81,
+      "isDataPoint": true
+    },
+    {
+      "id": 44,
+      "level": -1,
+      "weight": 88,
+      "isDataPoint": true
+    },
+    {
+      "id": 2,
+      "level": 1,
+      "weight": 47,
+      "isDataPoint": false
+    },
+    {
+      "id": 11,
+      "level": 0,
+      "weight": 53,
+      "isDataPoint": false
+    },
+    {
+      "id": 49,
+      "level": -1,
+      "weight": 32,
+      "isDataPoint": true
+    },
+    {
+      "id": 40,
+      "level": -1,
+      "weight": 44,
+      "isDataPoint": true
+    },
+    {
+      "id": 8,
+      "level": -1,
+      "weight": 55,
+      "isDataPoint": true
+    },
+    {
+      "id": 6,
+      "level": -1,
+      "weight": 83,
+      "isDataPoint": true
+    },
+    {
+      "id": 1,
+      "level": 1,
+      "weight": 60,
+      "isDataPoint": false
+    },
+    {
+      "id": 8,
+      "level": 0,
+      "weight": 52,
+      "isDataPoint": false
+    },
+    {
+      "id": 41,
+      "level": -1,
+      "weight": 0,
+      "isDataPoint": true
+    },
+    {
+      "id": 70,
+      "level": -1,
+      "weight": 19,
+      "isDataPoint": true
+    },
+    {
+      "id": 19,
+      "level": -1,
+      "weight": 50,
+      "isDataPoint": true
+    },
+    {
+      "id": 97,
+      "level": -1,
+      "weight": 70,
+      "isDataPoint": true
+    },
+    {
+      "id": 95,
+      "level": -1,
+      "weight": 74,
+      "isDataPoint": true
+    },
+    {
+      "id": 5,
+      "level": -1,
+      "weight": 75,
+      "isDataPoint": true
+    },
+    {
+      "id": 22,
+      "level": -1,
+      "weight": 79,
+      "isDataPoint": true
+    },
+    {
+      "id": 5,
+      "level": 0,
+      "weight": 53,
+      "isDataPoint": false
+    },
+    {
+      "id": 18,
+      "level": -1,
+      "weight": 20,
+      "isDataPoint": true
+    },
+    {
+      "id": 34,
+      "level": -1,
+      "weight": 35,
+      "isDataPoint": true
+    },
+    {
+      "id": 72,
+      "level": -1,
+      "weight": 60,
+      "isDataPoint": true
+    },
+    {
+      "id": 90,
+      "level": -1,
+      "weight": 61,
+      "isDataPoint": true
+    },
+    {
+      "id": 17,
+      "level": -1,
+      "weight": 89,
+      "isDataPoint": true
+    },
+    {
+      "id": 4,
+      "level": 0,
+      "weight": 63,
+      "isDataPoint": false
+    },
+    {
+      "id": 14,
+      "level": -1,
+      "weight": 7,
+      "isDataPoint": true
+    },
+    {
+      "id": 51,
+      "level": -1,
+      "weight": 59,
+      "isDataPoint": true
+    },
+    {
+      "id": 86,
+      "level": -1,
+      "weight": 89,
+      "isDataPoint": true
+    },
+    {
+      "id": 74,
+      "level": -1,
+      "weight": 99,
+      "isDataPoint": true
+    },
+    {
+      "id": 6,
+      "level": 0,
+      "weight": 67,
+      "isDataPoint": false
+    },
+    {
+      "id": 26,
+      "level": -1,
+      "weight": 23,
+      "isDataPoint": true
+    },
+    {
+      "id": 62,
+      "level": -1,
+      "weight": 61,
+      "isDataPoint": true
+    },
+    {
+      "id": 10,
+      "level": -1,
+      "weight": 80,
+      "isDataPoint": true
+    },
+    {
+      "id": 50,
+      "level": -1,
+      "weight": 84,
+      "isDataPoint": true
+    },
+    {
+      "id": 48,
+      "level": -1,
+      "weight": 87,
+      "isDataPoint": true
+    },
+    {
+      "id": 7,
+      "level": 0,
+      "weight": 69,
+      "isDataPoint": false
+    },
+    {
+      "id": 63,
+      "level": -1,
+      "weight": 29,
+      "isDataPoint": true
+    },
+    {
+      "id": 79,
+      "level": -1,
+      "weight": 57,
+      "isDataPoint": true
+    },
+    {
+      "id": 30,
+      "level": -1,
+      "weight": 65,
+      "isDataPoint": true
+    },
+    {
+      "id": 76,
+      "level": -1,
+      "weight": 71,
+      "isDataPoint": true
+    },
+    {
+      "id": 57,
+      "level": -1,
+      "weight": 73,
+      "isDataPoint": true
+    },
+    {
+      "id": 78,
+      "level": -1,
+      "weight": 95,
+      "isDataPoint": true
+    },
+    {
+      "id": 85,
+      "level": -1,
+      "weight": 96,
       "isDataPoint": true
     }
   ]
