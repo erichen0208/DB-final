@@ -27,6 +27,6 @@ target_include_directories(rtree_engine_module PRIVATE ${CMAKE_CURRENT_SOURCE_DI
 
 set_target_properties(rtree_engine_module PROPERTIES
     PREFIX ""  
-    SUFFIX ".cpython-310-darwin.so" 
+    SUFFIX ".cpython-310-x86_64-linux-gnu.so" # macOS: ".cpython-310-darwin.so"; Linux(docker): ".cpython-310-x86_64-linux-gnu.so"
     OUTPUT_NAME "rtree_engine"
 )

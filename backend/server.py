@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request, send_from_directory
+from flask import Response, stream_with_context
 from flask_cors import CORS
 import os
-import glob
 import json
 
 app = Flask(__name__)
@@ -22,7 +22,7 @@ def get_insert_frame(frame_id):
     with open(frame_path, 'r') as f:
         frame_data = json.load(f)
     
-    return jsonify(frame_data)
+    return jsonify(frame_data), 200
 
 @app.route('/api/search/frames/<int:search_id>', methods=['GET'])
 def get_search_frame(search_id):
@@ -35,29 +35,25 @@ def get_search_frame(search_id):
     with open(search_path, 'r') as f:
         search_data = json.load(f)
     
-    return jsonify(search_data)
+    return jsonify(search_data), 200
 
 # For real-time RTree demo
 import csv
-import sys
-sys.path.append("RTreeDB/build")
-import rtree_engine
+from rtree_engine import Cafe, RTreeEngine
 
-db = rtree_engine.RTreeEngine()
-weights = {
-    "crowd": 0.5,
-    "rating": 0.5
-}
+db = RTreeEngine()
+weights = {}
+cafe_file = 'cafes_100000.csv'
 
 @app.route('/api/insert/cafes', methods=['POST'])
 def insert_cafes_from_csv():
     try:
-        with open('cafes.csv', 'r', encoding='utf-8') as file:
+        with open(cafe_file, 'r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
             
             imported_count = 0
             for row in csv_reader:
-                cafe = rtree_engine.Cafe()
+                cafe = Cafe()
                 cafe.id = int(row['id'])
                 cafe.name = row['name']
                 cafe.rating = float(row['rating'])
@@ -71,7 +67,7 @@ def insert_cafes_from_csv():
         return jsonify({
             'status': 'success',
             'message': f'Imported {imported_count} cafes from CSV'
-        })
+        }), 200
         
     except Exception as e:
         return jsonify({'error': f'Error processing CSV: {str(e)}'}), 500
@@ -79,7 +75,7 @@ def insert_cafes_from_csv():
 @app.route('/api/insert/cafe', methods=['POST'])
 def insert_one_cafe():
     
-    cafe = rtree_engine.Cafe()
+    cafe = Cafe()
     cafe.id = cafe_data['id']
     cafe.name = cafe_data['name']
     cafe.rating = cafe_data['rating']
@@ -88,53 +84,54 @@ def insert_one_cafe():
     cafe.current_crowd = cafe_data['current_crowd']
     db.insert(cafe)
 
-    return jsonify({'status': 'success'})
+    return jsonify({'status': 'success'}), 201
 
 @app.route('/api/search/cafes', methods=['GET'])
-def search_all_cafes():
-    """Return all cafes in the database"""
+def search_cafes():
+    try:
+        required = ['lon', 'lat', 'radius', 'min_score']
+        for param in required:
+            if param not in request.args:
+                return jsonify({'error': f'Missing required parameter: {param}'}), 400
 
-    cafes = db.search(0.0, 0.0, 0.0, 0.0)
-    return jsonify([{
-        'id': c.id,
-        'name': c.name,
-        'rating': c.rating,
-        'lat': c.lat,
-        'lon': c.lon,
-        'current_crowd': c.current_crowd
-    } for c in cafes])
+        lon = float(request.args.get('lon'))
+        lat = float(request.args.get('lat'))
+        radius = float(request.args.get('radius'))
+        min_score = float(request.args.get('min_score'))
 
-@app.route('/api/search', methods=['GET'])
-def search_cafe():
-    
-    lon = float(request.args.get('lon'))
-    lat = float(request.args.get('lat'))
-    radius = float(request.args.get('radius'))
-    min_score = float(request.args.get('min_score'))
+        def generate():
+            print("Streaming started")
 
-    cafes = db.search(lon, lat, radius, min_score)
-    return jsonify([{
-        'id': c.id,
-        'name': c.name,
-        'rating': c.rating,
-        'lat': c.lat,
-        'lon': c.lon,
-        'current_crowd': c.current_crowd
-    } for c in cafes])
+            cafes = db.stream_search(lon, lat, radius, min_score) 
+            
+            for i, cafe in enumerate(cafes):
+                data = json.dumps({
+                    'id': cafe.id,
+                    'name': cafe.name,
+                    'rating': cafe.rating,
+                    'lat': cafe.lat,
+                    'lon': cafe.lon,
+                    'current_crowd': cafe.current_crowd
+                })
+                # print(f"Yielding cafe {i+1}: {data}")
+                yield data + '\n' 
+            
+            print("Streaming ended")
+
+        return Response(stream_with_context(generate()), mimetype='application/json')
+
+    except ValueError:
+        return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Streaming search failed: {str(e)}'}), 500
 
 @app.route('/api/update/weights', methods=['PUT'])
 def update_weights():
     """Update the weights for crowd and rating"""
     global weights
-    data = request.json
-    
-    if 'crowd' in data:
-        weights['crowd'] = data['crowd']
-    
-    if 'rating' in data:
-        weights['rating'] = data['rating']
-    
-    return jsonify({'status': 'success', 'weights': weights})
+    weights = request.json
+
+    return jsonify({'status': 'success'}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')
