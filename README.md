@@ -1,6 +1,16 @@
 # DB Final Project
 
-## Backend
+## Run with docker
+
+```sh
+# Open you docker desktop
+docker compose build
+docker compose up
+```
+
+## Run with host
+
+### Backend
 
 1. Python:
 
@@ -14,34 +24,30 @@ pip install -r requirements.txt
 2. C++:
 
 ```sh
-cd backend/app
-g++ -std=c++17 -o rtree_test test.cpp
+cd backend
+chmod +x setup.sh
+./setup.sh
 ```
 
-## Frontend
+- Note. Before run ./setup.sh, please modify backend/RTreeDB/CMakeLists.txt, line 30, based on you OS (I don't know about wins)
+
+### Frontend
 
 ```sh
 cd frontend
 npm install
 ```
 
-## How to run
+### How to run
 
-1. Run `rtree_test` to get a new directory **frames**, which contains the tree structure of each operation.
-
-```
-cd backend/app
-./rtree-test
-```
-
-2. Run Flask
+1. Run Backend
 
 ```sh
-cd backend/app
+cd backend
 python server.py
 ```
 
-3. Run React
+2. Run Frontend
 
 ```sh
 cd frontend
