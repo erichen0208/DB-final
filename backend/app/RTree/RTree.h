@@ -116,7 +116,7 @@ public:
   /// \param a_resultCallback Callback function to return result.  Callback should return 'true' to continue searching
   /// \param a_context User context to pass as parameter to a_resultCallback
   /// \return Returns the number of entries found and SearchPathReocrd if returnSearchPath is true.
-  std::pair<int, std::vector<SearchPathRecord>> Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath);
+  std::pair<int, std::vector<SearchPathRecord>> Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath, int max_crowd);
 
   /// Find the nearest neighbors
   /// \param a_min Min of search bounding rect
@@ -421,7 +421,7 @@ protected:
   bool Overlap(Rect* a_rectA, Rect* a_rectB) const;
   ELEMTYPE SquareDistance(Rect const& a_rectA, Rect const& a_rectB) const;
   void ReInsert(Node* a_node, ListNode** a_listNode);
-  bool Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback) const;
+  bool Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback, int max_crowd) const;
   void RemoveAllRec(Node* a_node);
   void Reset();
   void CountRec(Node* a_node, int& a_count);
@@ -617,7 +617,7 @@ void RTREE_QUAL::Remove(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMD
 
 
 RTREE_TEMPLATE
-std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath)
+std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath, int max_crowd)
 {
 #ifdef _DEBUG
   for(int index=0; index<NUMDIMS; ++index)
@@ -643,7 +643,7 @@ std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::S
 	// If we are not returning the search path, just call the search function
 	// and return the number of found elements.
 	 
-  Search(m_root, &rect, foundCount, callback);
+  Search(m_root, &rect, foundCount, callback, max_crowd);
 
   return std::make_pair(foundCount, m_searchPath);
   
@@ -1797,7 +1797,9 @@ void RTREE_QUAL::ReInsert(Node* a_node, ListNode** a_listNode)
 
 // Search in an index tree or subtree for all data retangles that overlap the argument rectangle.
 RTREE_TEMPLATE
-bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback) const
+bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount,
+                        std::function<bool (const DATATYPE&)> callback,
+                        int max_crowd) const  // <-- 新增參數
 {
   RTREE_ASSERT(a_node);
   RTREE_ASSERT(a_node->m_level >= 0);
@@ -1812,53 +1814,41 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::func
     m_searchPath.push_back(record);
   }
 
-  if (a_node->IsInternalNode())
-  {
-    // === 將符合區域條件的子節點加入待搜尋列表 ===
+  if (a_node->IsInternalNode()) {
     std::vector<std::pair<int, Node*>> candidates;
-    for (int index = 0; index < a_node->m_count; ++index)
-    {
-      if (Overlap(a_rect, &a_node->m_branch[index].m_rect))
-      {
+    for (int index = 0; index < a_node->m_count; ++index) {
+      if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
         Node* child = a_node->m_branch[index].m_child;
         candidates.emplace_back(child->m_weight, child);
       }
     }
 
-    // === 根據 m_weight 由小到大排序 ===
     std::sort(candidates.begin(), candidates.end());
 
-    // === 遞迴搜尋子節點 ===
-    for (const auto& pair : candidates)
-    {
+    for (const auto& pair : candidates) {
       Node* child = pair.second;
-      if (!Search(child, a_rect, a_foundCount, callback))
-      {
-        return false; // callback 要求終止搜尋
+      if (!Search(child, a_rect, a_foundCount, callback, max_crowd)) {  // 傳遞 max_crowd
+        return false;
       }
     }
   }
-  else
-  {
-    // === Leaf node: 收集符合區域的資料點，並依照 crowd 排序 ===
+  else {
     std::vector<std::pair<int, DATATYPE>> candidates;
 
-    for (int index = 0; index < a_node->m_count; ++index)
-    {
-      if (Overlap(a_rect, &a_node->m_branch[index].m_rect))
-      {
+    for (int index = 0; index < a_node->m_count; ++index) {
+      if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
         DATATYPE& data = a_node->m_branch[index].m_data;
-        int weight = data->current_crowd;  // 把 Cafe 的 current_crowd 當作排序依據
-        candidates.emplace_back(weight, data);
+        int weight = data->current_crowd;
+
+        if (weight <= max_crowd) {  // <-- 篩掉過擁擠的地點
+          candidates.emplace_back(weight, data);
+        }
       }
     }
 
-    // 依照 crowd 由小到大排序
     std::sort(candidates.begin(), candidates.end());
 
-    // 呼叫 callback 處理排序後的資料點
-    for (const auto& pair : candidates)
-    { 
+    for (const auto& pair : candidates) {
       int weight = pair.first;
       DATATYPE id = pair.second;
       ++a_foundCount;
@@ -1872,17 +1862,14 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::func
         m_searchPath.push_back(dataRecord);
       }
 
-      if (callback && !callback(id))
-      {
-        return false; // callback 要求停止
+      if (callback && !callback(id)) {
+        return false;
       }
     }
   }
 
-  return true; // 繼續搜尋
+  return true;
 }
-
-
 
 RTREE_TEMPLATE
 std::vector<typename RTREE_QUAL::Rect> RTREE_QUAL::ListTree() const
@@ -1949,11 +1936,8 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode) {
         return;
     }
 
-    // Helper function to recursively calculate weights
     std::function<int(Node*)> calculateWeight = [&](Node* node) -> int {
-        if (!node) {
-            return 0;
-        }
+        if (!node) return 0;
 
         if (node->IsLeaf()) {
             std::vector<int> crowds;
@@ -1976,13 +1960,26 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode) {
                 node->m_weight = (crowds.size() % 2 == 0)
                     ? (crowds[mid - 1] + crowds[mid]) / 2
                     : crowds[mid];
+            } else if (mode == "trimmed_mean") {
+                std::sort(crowds.begin(), crowds.end());
+                if (crowds.size() <= 2) {
+                    // Too small to trim, just take mean
+                    int sum = 0;
+                    for (int c : crowds) sum += c;
+                    node->m_weight = sum / static_cast<int>(crowds.size());
+                } else {
+                    int sum = 0;
+                    for (size_t i = 1; i < crowds.size() - 1; ++i) {
+                        sum += crowds[i];
+                    }
+                    node->m_weight = sum / static_cast<int>(crowds.size() - 2);
+                }
             } else {
                 throw std::invalid_argument("Unsupported mode: " + mode);
             }
 
             return node->m_weight;
-        }
-        else {
+        } else {
             std::vector<int> childWeights;
             for (int i = 0; i < node->m_count; ++i) {
                 Node* child = node->m_branch[i].m_child;
@@ -2003,6 +2000,19 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode) {
                 node->m_weight = (childWeights.size() % 2 == 0)
                     ? (childWeights[mid - 1] + childWeights[mid]) / 2
                     : childWeights[mid];
+            } else if (mode == "trimmed_mean") {
+                std::sort(childWeights.begin(), childWeights.end());
+                if (childWeights.size() <= 2) {
+                    int sum = 0;
+                    for (int w : childWeights) sum += w;
+                    node->m_weight = sum / static_cast<int>(childWeights.size());
+                } else {
+                    int sum = 0;
+                    for (size_t i = 1; i < childWeights.size() - 1; ++i) {
+                        sum += childWeights[i];
+                    }
+                    node->m_weight = sum / static_cast<int>(childWeights.size() - 2);
+                }
             } else {
                 throw std::invalid_argument("Unsupported mode: " + mode);
             }
@@ -2013,7 +2023,6 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode) {
 
     calculateWeight(m_root);
 }
-
 
 // Before using this function, make sure to call LabelNodeId() to assign IDs to nodes.
 RTREE_TEMPLATE

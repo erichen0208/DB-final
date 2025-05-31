@@ -300,7 +300,7 @@ void query_area(CafeTree &tree, double lat_min, double lon_min, double lat_max,
             << lat_max << ", " << lon_max << ")\n";
 
   auto start = std::chrono::high_resolution_clock::now();
-  auto searchResult = tree.Search(min, max, callback, true);
+  auto searchResult = tree.Search(min, max, callback, true, max_crowd);
   auto end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double, std::milli> duration_ms = end - start;
   
@@ -312,9 +312,12 @@ void query_area(CafeTree &tree, double lat_min, double lon_min, double lat_max,
 int main(int argc, char* argv[])
 {
   std::string weightMode = "mean";
+  int threshold = std::numeric_limits<int>::max(); 
 
-  if (argc >= 2) 
-      weightMode = argv[1];
+  if (argc >= 3) {
+    weightMode = argv[1];
+    threshold = std::stoi(argv[2]); 
+  }
 
   std::vector<Cafe *> cafes = read_cafes_from_csv("cafes.csv");
 
@@ -328,7 +331,7 @@ int main(int argc, char* argv[])
 
   insert_to_rtree(rtree, cafes, weightMode);
 
-  query_area(rtree, 25.06, 121.5, 25.0994, 121.56, 50);
+  query_area(rtree, 25.06, 121.5, 25.0994, 121.56, threshold);
 
   for (auto cafe : cafes)
     delete cafe;
