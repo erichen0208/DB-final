@@ -8,12 +8,13 @@ services:
     depends_on:
       - db
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=0000
-      - DB_NAME=cafe_db
-    # volumes:
-    #   - ./backend:/app
+      - MYSQL_HOST=db
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_DATABASE=cafeDB
+    volumes:
+      - ./backend:/app
+    working_dir: /app
 
   frontend:
     build:
@@ -29,14 +30,19 @@ services:
 
   db:
     image: mysql:8.0
+    container_name: cafe_mysql
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: cafe_db
+      MYSQL_DATABASE: cafeDB
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./backend/MysqlDB/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
 
 volumes:
   mysql_data:

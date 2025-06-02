@@ -1,37 +1,59 @@
 FROM python:3.10-slim
 
-# Install required system dependencies
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies for both C++ MySQL and build tools
 RUN apt-get update && apt-get install -y \
-    cmake g++ git make \
-    default-libmysqlclient-dev \
+    build-essential \
+    g++ \
+    cmake \
     pkg-config \
+    libmariadb-dev \
+    libmariadb-dev-compat \
+    default-mysql-client \
+    git \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (for better caching)
+# Copy requirements first for better caching
 COPY backend/requirements.txt .
 
 # Install Python dependencies
-RUN pip install -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Copy source files
 COPY backend/ .
 
-# Build the C++ module
-RUN cd RTreeDB && \
-    rm -rf build && \
-    mkdir -p build && \
-    cd build && \
-    cmake .. && \
-    make && \
-    cp *.so /app/
+# Create mysql symlink for compatibility
+RUN rm -rf /usr/include/mysql && ln -sf /usr/include/mariadb /usr/include/mysql
 
-# Set Flask app
+# Build the C++ module with cmake
+# RUN if [ -d "RTreeDB" ]; then \
+#     cd RTreeDB && \
+#     rm -rf build && \
+#     mkdir -p build && cd build && \
+#     cmake .. && \
+#     make -j$(nproc) && \
+#     cp *.so /app/ && \
+#     echo "✅ Built .so files:" && ls -la /app/*.so; \
+#     else echo "❌ RTreeDB directory not found."; fi
+
+# Set environment variables for MySQL connection
+ENV MYSQL_HOST=db
+ENV MYSQL_USER=user
+ENV MYSQL_PASSWORD=password
+ENV MYSQL_DATABASE=cafeDB
+
+# Set Python environment
+ENV PYTHONPATH=/app
 ENV FLASK_APP=server.py
 ENV FLASK_ENV=development
 ENV PYTHONUNBUFFERED=1 
+
 EXPOSE 5000
 
 CMD ["flask", "run", "--host=0.0.0.0"]

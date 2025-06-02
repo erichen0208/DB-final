@@ -1,17 +1,25 @@
 #include "RTree.h"
+#include "../../MYsqlDB/Scoring.h"
 #include <pybind11/pybind11.h>
 #include <vector>
 #include <cmath>
 #include <string>
 #include <algorithm> 
+#include <fstream>
 #define NUMDIMS 2
 
-struct Cafe {
+// struct Cafe {
+//   int id;
+//   std::string name;
+//   double rating;
+//   double lat, lon;
+//   int current_crowd;
+// };
+
+struct CafeLoc {
   int id;
-  std::string name;
-  double rating;
-  double lat, lon;
-  int current_crowd;
+  double lon, lat;
+  CafeLoc(int id, double lon, double lat) : id(id), lon(lon), lat(lat) {}
 };
 
 class RTreeEngine;
@@ -20,49 +28,77 @@ class CafeSearchIterator {
 public:
   CafeSearchIterator(RTreeEngine* engine,
                      double lon, double lat,
-                     double r_meters, double min_score);
+                     double r_meters, double min_score, std::unordered_map<std::string, double> weights = {});
 
-  Cafe next();
+  CafeLoc next();
 
 private:
-  std::vector<Cafe> results_;
+  std::vector<CafeLoc> results_;
   size_t index_ = 0;
 };
 
 class RTreeEngine {
 public:
-  RTree<Cafe*, double, NUMDIMS> tree;
+  RTree<CafeLoc*, double, NUMDIMS> tree;
 
-  void insert(const Cafe &cafe) {
-    double min[2] = { cafe.lon, cafe.lat };
-    double max[2] = { cafe.lon, cafe.lat };
-    Cafe* newCafe = new Cafe(cafe); 
-    tree.Insert(min, max, newCafe);
+  bool init_mysql_connection() {
+    return init_mysql();
   }
 
-  std::vector<Cafe> search(double lon, double lat, double r_meters, double min_score) {
+  void insert(const std::vector<Cafe> &cafes) {
+      // Mysql
+      if(!insert_cafes_to_mysql(cafes)) {
+        std::cout << "❌ Failed to insert cafes to MySQL\n";
+      }
+
+      // Rtree
+      for (const auto& cafe : cafes) {
+          double min[2] = { cafe.lon, cafe.lat };
+          double max[2] = { cafe.lon, cafe.lat };
+
+          CafeLoc* newCafe = new CafeLoc(cafe.id, cafe.lon, cafe.lat);
+          tree.Insert(min, max, newCafe);
+      }
+  }
+
+  std::vector<CafeLoc> search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
+    tree.LabelNodeWeight(mode_, lon, lat, weights);
     double min[2], max[2];
     bounding_box(lon, lat, r_meters, min, max);
 
-    std::vector<Cafe> result;
-    auto callback = [min_score, &result](Cafe *cafe) {
-      if (cafe->current_crowd >= min_score)
-        result.push_back(*cafe);
+    std::vector<CafeLoc> result;
+    auto callback = [&result](CafeLoc *cafe) {
+      result.push_back(*cafe);
       return true;
     };
 
-    tree.Search(min, max, callback, false);
-    std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
-        return a.current_crowd < b.current_crowd;
-    });
+    tree.Search(min, max, callback, false, min_score);
+
+    // auto searchResult = tree.Search(min, max, callback, true, min_score);
+    // std::ofstream outFile("search_result.txt");
+    // if (outFile.is_open()) {
+    //     for (const auto& record : searchResult.second) {
+    //         outFile << "ID: " << record.id 
+    //                 << ", IsDataPoint: " << (record.isDataPoint ? "true" : "false")
+    //                 << ", Level: " << record.level 
+    //                 << ", Weight: " << record.weight << std::endl;
+    //     }
+    //     outFile.close();
+    // }
+    // std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
+    //     return a.current_crowd < b.current_crowd;
+    // });
     return result;
   }
 
-  CafeSearchIterator stream_search(double lon, double lat, double r_meters, double min_score) {
+  CafeSearchIterator stream_search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
+    tree.LabelNodeWeight(mode_, lon, lat, weights);
     return CafeSearchIterator(this, lon, lat, r_meters, min_score);
   }
 
 private:
+  std::string mode_ = "median";
+  
   void bounding_box(double lon, double lat, double r_meters, double* min, double* max) {
     if (r_meters <= 0) {
         min[0] = 121.50;
@@ -87,20 +123,19 @@ private:
 
 inline CafeSearchIterator::CafeSearchIterator(RTreeEngine* engine,
                                               double lon, double lat,
-                                              double r_meters, double min_score) {
+                                              double r_meters, double min_score, std::unordered_map<std::string, double> weights) {
   double min[2], max[2];
   engine->bounding_box(lon, lat, r_meters, min, max);
 
-  auto callback = [min_score, this](Cafe* cafe) {
-    if (cafe->current_crowd >= min_score)
-      results_.push_back(*cafe);
+  auto callback = [this](CafeLoc* cafe) { 
+    results_.push_back(*cafe);  
     return true;
   };
 
-  engine->tree.Search(min, max, callback, false);
+  engine->tree.Search(min, max, callback, false, min_score);
 }
 
-inline Cafe CafeSearchIterator::next() {
+inline CafeLoc CafeSearchIterator::next() { 
   if (index_ >= results_.size())
     throw pybind11::stop_iteration();
   return results_[index_++];

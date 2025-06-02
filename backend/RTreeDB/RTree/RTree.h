@@ -9,6 +9,7 @@
 #include <cmath>
 #include <assert.h>
 #include <stdlib.h>
+#include <string>
 
 #include <algorithm>
 #include <functional>
@@ -16,6 +17,9 @@
 #include <queue>
 #include <map>
 #include <limits>
+
+#include <unordered_map>
+#include "../../MYsqlDB/Scoring.h"
 
 #define RTREE_ASSERT assert // RTree uses RTREE_ASSERT( condition )
 #ifdef Min
@@ -77,6 +81,7 @@ public:
     int id;               // Node or data point ID
     bool isDataPoint;     // Whether this is a data point or tree node
     int level;            // Level in the tree (-1 for data points)
+    int weight;
   };
   // These constant must be declared after Branch and before Node struct
   // Stuck up here for MSVC 6 compiler.  NSVC .NET 2003 is much happier.
@@ -115,7 +120,7 @@ public:
   /// \param a_resultCallback Callback function to return result.  Callback should return 'true' to continue searching
   /// \param a_context User context to pass as parameter to a_resultCallback
   /// \return Returns the number of entries found and SearchPathReocrd if returnSearchPath is true.
-  std::pair<int, std::vector<SearchPathRecord>> Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath);
+  std::pair<int, std::vector<SearchPathRecord>> Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath, int min_score);
 
   /// Find the nearest neighbors
   /// \param a_min Min of search bounding rect
@@ -144,7 +149,7 @@ public:
 
   // Get complete tree structure with hierarchy information
   void LabelNodeId();
-  void LabelNodeWeight();
+  void LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights = {});
   TreeStructure GetTreeStructure() const;
 
   /// Iterator is not remove safe.
@@ -420,7 +425,7 @@ protected:
   bool Overlap(Rect* a_rectA, Rect* a_rectB) const;
   ELEMTYPE SquareDistance(Rect const& a_rectA, Rect const& a_rectB) const;
   void ReInsert(Node* a_node, ListNode** a_listNode);
-  bool Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback) const;
+  bool Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback, int min_score) const;
   void RemoveAllRec(Node* a_node);
   void Reset();
   void CountRec(Node* a_node, int& a_count);
@@ -616,7 +621,7 @@ void RTREE_QUAL::Remove(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMD
 
 
 RTREE_TEMPLATE
-std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath)
+std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::Search(const ELEMTYPE a_min[NUMDIMS], const ELEMTYPE a_max[NUMDIMS], std::function<bool (const DATATYPE&)> callback, bool a_returnSearchPath, int min_score)
 {
 #ifdef _DEBUG
   for(int index=0; index<NUMDIMS; ++index)
@@ -642,7 +647,7 @@ std::pair<int, std::vector<typename RTREE_QUAL::SearchPathRecord>> RTREE_QUAL::S
 	// If we are not returning the search path, just call the search function
 	// and return the number of found elements.
 	 
-  Search(m_root, &rect, foundCount, callback);
+  Search(m_root, &rect, foundCount, callback, min_score);
 
   return std::make_pair(foundCount, m_searchPath);
   
@@ -1796,64 +1801,85 @@ void RTREE_QUAL::ReInsert(Node* a_node, ListNode** a_listNode)
 
 // Search in an index tree or subtree for all data retangles that overlap the argument rectangle.
 RTREE_TEMPLATE
-bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount, std::function<bool (const DATATYPE&)> callback) const
+bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount,
+                        std::function<bool (const DATATYPE&)> callback,
+                        int min_score) const  
 {
   RTREE_ASSERT(a_node);
   RTREE_ASSERT(a_node->m_level >= 0);
   RTREE_ASSERT(a_rect);
 
-	if (m_returnSearchPath) {
-		SearchPathRecord record;
-		record.id = a_node->m_id;
-		record.isDataPoint = false;
-		record.level = a_node->m_level;
-		m_searchPath.push_back(record);
-	}
+  if (m_returnSearchPath) {
+    SearchPathRecord record;
+    record.id = a_node->m_id;
+    record.isDataPoint = false;
+    record.level = a_node->m_level;
+    record.weight = a_node->m_weight;
+    m_searchPath.push_back(record);
+  }
 
-  if(a_node->IsInternalNode())
-  {
-    // This is an internal node in the tree
-    for(int index=0; index < a_node->m_count; ++index)
-    {
-      if(Overlap(a_rect, &a_node->m_branch[index].m_rect))
-      {
-        if(!Search(a_node->m_branch[index].m_child, a_rect, a_foundCount, callback))
-        {
-          // The callback indicated to stop searching
-          return false;
+
+  // struct DescendingByFirst {
+  //     bool operator()(const std::pair<int, Node*>& a, const std::pair<int, Node*>& b) const {
+  //         return a.first > b.first;
+  //     }
+  // };
+
+  if (a_node->IsInternalNode()) {
+    std::vector<std::pair<int, Node*>> candidates;
+    for (int index = 0; index < a_node->m_count; ++index) {
+      if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
+        Node* child = a_node->m_branch[index].m_child;
+        candidates.emplace_back(child->m_weight, child);
+      }
+    }
+    
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    for (const auto& pair : candidates) {
+      Node* child = pair.second;
+      if (!Search(child, a_rect, a_foundCount, callback, min_score)) { 
+        return false;
+      }
+    }
+  }
+  else {
+    std::vector<std::pair<int, DATATYPE>> candidates;
+
+    for (int index = 0; index < a_node->m_count; ++index) {
+      if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
+        DATATYPE& data = a_node->m_branch[index].m_data;
+        int weight = 100;
+
+        if (weight >= min_score) { 
+          candidates.emplace_back(weight, data);
         }
       }
     }
-  }
-  else
-  {
-    // This is a leaf node
-    for(int index=0; index < a_node->m_count; ++index)
-    {
-      if(Overlap(a_rect, &a_node->m_branch[index].m_rect))
-      {
-        DATATYPE& id = a_node->m_branch[index].m_data;
-        ++a_foundCount;
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
 
-				if (m_returnSearchPath) {
-					SearchPathRecord dataRecord;
-					dataRecord.id = id->id;
-					dataRecord.isDataPoint = true;
-					dataRecord.level = -1;
-					m_searchPath.push_back(dataRecord);
-				}
+    for (const auto& pair : candidates) {
+      int weight = pair.first;
+      DATATYPE id = pair.second;
+      ++a_foundCount;
 
-				if(callback && !callback(id))
-				{
-					return false; // Don't continue searching
-				}
+      if (m_returnSearchPath) {
+        SearchPathRecord dataRecord;
+        dataRecord.id = id->id;
+        dataRecord.isDataPoint = true;
+        dataRecord.level = -1;
+        dataRecord.weight = weight;
+        m_searchPath.push_back(dataRecord);
+      }
+
+      if (callback && !callback(id)) {
+        return false;
       }
     }
   }
 
-  return true; // Continue searching
+  return true;
 }
-
 
 RTREE_TEMPLATE
 std::vector<typename RTREE_QUAL::Rect> RTREE_QUAL::ListTree() const
@@ -1915,43 +1941,102 @@ void RTREE_QUAL::LabelNodeId() {
 }
 
 RTREE_TEMPLATE
-void RTREE_QUAL::LabelNodeWeight() {
+void RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights) {
     if (!m_root) {
         return;
     }
 
-    // Helper function to recursively calculate weights
     std::function<int(Node*)> calculateWeight = [&](Node* node) -> int {
-        if (!node) {
-            return 0;
-        }
+        if (!node) return 0;
 
         if (node->IsLeaf()) {
-            int totalWeight = 0;
+            std::vector<int> dataIds;
             for (int i = 0; i < node->m_count; ++i) {
                 DATATYPE data = node->m_branch[i].m_data;
-                totalWeight += data->current_crowd;
+                if (data) {
+                    dataIds.push_back(data->id);
+                }
             }
-            node->m_weight = node->m_count > 0 ? totalWeight / node->m_count : 0;
+
+            std::vector<double> scores;
+            std::unordered_map<std::string, double> weights;
+            weights["current_crowd"] = 0.2;
+            weights["rating"] = 0.8;
+            scores = GetLeafNodeScores(dataIds, 121.565, 25.033, weights);
+
+            if (scores.empty()) {
+                node->m_weight = 0;
+            } else if (mode == "mean") {
+                int sum = 0;
+                for (int c : scores) sum += c;
+                node->m_weight = sum / static_cast<int>(scores.size());
+            } else if (mode == "median") {
+                std::sort(scores.begin(), scores.end());
+                size_t mid = scores.size() / 2;
+                node->m_weight = (scores.size() % 2 == 0)
+                    ? (scores[mid - 1] + scores[mid]) / 2
+                    : scores[mid];
+            } else if (mode == "trimmed_mean") {
+                std::sort(scores.begin(), scores.end());
+                if (scores.size() <= 2) {
+                    // Too small to trim, just take mean
+                    int sum = 0;
+                    for (int c : scores) sum += c;
+                    node->m_weight = sum / static_cast<int>(scores.size());
+                } else {
+                    int sum = 0;
+                    for (size_t i = 1; i < scores.size() - 1; ++i) {
+                        sum += scores[i];
+                    }
+                    node->m_weight = sum / static_cast<int>(scores.size() - 2);
+                }
+            } else {
+                throw std::invalid_argument("Unsupported mode: " + mode);
+            }
+
             return node->m_weight;
-        }
-        else {
-            int totalChildWeight = 0;
-            int childCount = 0;
-            
+        } else {
+            std::vector<int> childWeights;
             for (int i = 0; i < node->m_count; ++i) {
                 Node* child = node->m_branch[i].m_child;
                 if (child) {
-                    totalChildWeight += calculateWeight(child);
-                    childCount++;
+                    childWeights.push_back(calculateWeight(child));
                 }
             }
-            
-            node->m_weight = childCount > 0 ? totalChildWeight / childCount : 0;
+
+            if (childWeights.empty()) {
+                node->m_weight = 0;
+            } else if (mode == "mean") {
+                int sum = 0;
+                for (int w : childWeights) sum += w;
+                node->m_weight = sum / static_cast<int>(childWeights.size());
+            } else if (mode == "median") {
+                std::sort(childWeights.begin(), childWeights.end());
+                size_t mid = childWeights.size() / 2;
+                node->m_weight = (childWeights.size() % 2 == 0)
+                    ? (childWeights[mid - 1] + childWeights[mid]) / 2
+                    : childWeights[mid];
+            } else if (mode == "trimmed_mean") {
+                std::sort(childWeights.begin(), childWeights.end());
+                if (childWeights.size() <= 2) {
+                    int sum = 0;
+                    for (int w : childWeights) sum += w;
+                    node->m_weight = sum / static_cast<int>(childWeights.size());
+                } else {
+                    int sum = 0;
+                    for (size_t i = 1; i < childWeights.size() - 1; ++i) {
+                        sum += childWeights[i];
+                    }
+                    node->m_weight = sum / static_cast<int>(childWeights.size() - 2);
+                }
+            } else {
+                throw std::invalid_argument("Unsupported mode: " + mode);
+            }
+
             return node->m_weight;
         }
     };
-    
+
     calculateWeight(m_root);
 }
 
@@ -2041,4 +2126,3 @@ typename RTREE_QUAL::TreeStructure RTREE_QUAL::GetTreeStructure() const
 #undef RTREE_QUAL
 
 #endif //RTREE_H
-

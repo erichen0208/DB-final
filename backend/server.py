@@ -39,19 +39,30 @@ def get_search_frame(search_id):
 
 # For real-time RTree demo
 import csv
-from rtree_engine import Cafe, RTreeEngine
+from rtree_engine import Cafe, CafeLoc, RTreeEngine
 
 db = RTreeEngine()
-weights = {}
-cafe_file = 'cafes_100000.csv'
+weights = {"curret_crowd": 0.5, "rating": 0.5}
+cafe_file = 'csvs/cafes_100.csv'
+
+@app.route('/api/initmysql', methods=['POST'])
+def initialize_db():
+    try:
+        if db.init_mysql_connection():
+            return jsonify({'status': 'success', 'message': 'MySQL connected'}), 200
+        else:
+            return jsonify({'status': 'error', 'message': 'MySQL connection failed'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/api/insert/cafes', methods=['POST'])
 def insert_cafes_from_csv():
     try:
+        cafes_batch = []
+        
         with open(cafe_file, 'r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
             
-            imported_count = 0
             for row in csv_reader:
                 cafe = Cafe()
                 cafe.id = int(row['id'])
@@ -61,30 +72,18 @@ def insert_cafes_from_csv():
                 cafe.lon = float(row['longitude'])
                 cafe.current_crowd = int(row['current_crowd'])
                 
-                db.insert(cafe)
-                imported_count += 1
+                cafes_batch.append(cafe)
+        
+        # Insert all cafes at once using vector
+        db.insert(cafes_batch)
         
         return jsonify({
             'status': 'success',
-            'message': f'Imported {imported_count} cafes from CSV'
-        }), 200
+            'message': f'Imported {len(cafes_batch)} cafes from CSV'
+        }), 201
         
     except Exception as e:
         return jsonify({'error': f'Error processing CSV: {str(e)}'}), 500
-
-@app.route('/api/insert/cafe', methods=['POST'])
-def insert_one_cafe():
-    
-    cafe = Cafe()
-    cafe.id = cafe_data['id']
-    cafe.name = cafe_data['name']
-    cafe.rating = cafe_data['rating']
-    cafe.lat = cafe_data['lat']
-    cafe.lon = cafe_data['lon']
-    cafe.current_crowd = cafe_data['current_crowd']
-    db.insert(cafe)
-
-    return jsonify({'status': 'success'}), 201
 
 @app.route('/api/search/cafes', methods=['GET'])
 def search_cafes():
@@ -102,16 +101,13 @@ def search_cafes():
         def generate():
             print("Streaming started")
 
-            cafes = db.stream_search(lon, lat, radius, min_score) 
+            cafes = db.stream_search(lon, lat, radius, min_score, weights) 
             
             for i, cafe in enumerate(cafes):
                 data = json.dumps({
                     'id': cafe.id,
-                    'name': cafe.name,
-                    'rating': cafe.rating,
                     'lat': cafe.lat,
-                    'lon': cafe.lon,
-                    'current_crowd': cafe.current_crowd
+                    'lon': cafe.lon
                 })
                 # print(f"Yielding cafe {i+1}: {data}")
                 yield data + '\n' 
@@ -124,6 +120,34 @@ def search_cafes():
         return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
     except Exception as e:
         return jsonify({'error': f'Streaming search failed: {str(e)}'}), 500
+
+@app.route('/api/search/cafes/regular', methods=['GET'])
+def search_cafes_regular():
+    try:
+        print(weights)
+        cafes = db.search(0, 0, 0, 0, weights)
+        
+        # Convert results to JSON format
+        results = []
+        for cafe in cafes:
+            results.append({
+                'id': cafe.id,
+                'lat': cafe.lat,
+                'lon': cafe.lon
+            })
+        
+        print(f"Found {len(results)} cafes")
+        
+        return jsonify({
+            'status': 'success',
+            'count': len(results),
+            'cafes': results
+        }), 200
+
+    except ValueError:
+        return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Search failed: {str(e)}'}), 500
 
 @app.route('/api/update/weights', methods=['PUT'])
 def update_weights():

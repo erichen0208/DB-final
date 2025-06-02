@@ -29,7 +29,7 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-- Note. Before run ./setup.sh, please modify backend/RTreeDB/CMakeLists.txt, line 30, based on you OS (I don't know about wins)
+- Note. Before run `./setup.sh`, please modify `backend/RTreeDB/CMakeLists.txt`, line 30, based on you OS (I don't know about wins)
 
 ### Frontend
 
