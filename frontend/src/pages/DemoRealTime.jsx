@@ -262,7 +262,7 @@ const DemoRealTime = () => {
   const updateWeights = async () => {
     try {
       const weights = {};
-      if (useSliders.crowd) weights.crowd = searchParams.crowd;
+      if (useSliders.crowd) weights.current_crowd = searchParams.crowd;
       if (useSliders.rating) weights.rating = searchParams.rating;
       if (useSliders.price) weights.price = searchParams.price;
       if (useSliders.distance) weights.distance = searchParams.distance;
@@ -297,7 +297,7 @@ const DemoRealTime = () => {
       });
 
       const response = await fetch(
-        `${API_URL}/api/search/cafes?${queryParams}`
+        `${API_URL}/api/search/cafes/regular?${queryParams}`
       );
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);

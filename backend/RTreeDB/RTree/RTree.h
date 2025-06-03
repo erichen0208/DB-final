@@ -149,7 +149,7 @@ public:
 
   // Get complete tree structure with hierarchy information
   void LabelNodeId();
-  void LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights = {});
+  std::unordered_map<int, std::unordered_map<std::string, double>> LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights = {});
   TreeStructure GetTreeStructure() const;
 
   /// Iterator is not remove safe.
@@ -1941,9 +1941,11 @@ void RTREE_QUAL::LabelNodeId() {
 }
 
 RTREE_TEMPLATE
-void RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights) {
+std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights) {
+    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas;
+    
     if (!m_root) {
-        return;
+        return cafeDatas; 
     }
 
     std::function<int(Node*)> calculateWeight = [&](Node* node) -> int {
@@ -1959,10 +1961,7 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, cons
             }
 
             std::vector<double> scores;
-            std::unordered_map<std::string, double> weights;
-            weights["current_crowd"] = 0.2;
-            weights["rating"] = 0.8;
-            scores = GetLeafNodeScores(dataIds, 121.565, 25.033, weights);
+            scores = GetLeafNodeScores(dataIds, 121.565, 25.033, weights, cafeDatas);
 
             if (scores.empty()) {
                 node->m_weight = 0;
@@ -2038,6 +2037,8 @@ void RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, cons
     };
 
     calculateWeight(m_root);
+
+    return cafeDatas;
 }
 
 // Before using this function, make sure to call LabelNodeId() to assign IDs to nodes.

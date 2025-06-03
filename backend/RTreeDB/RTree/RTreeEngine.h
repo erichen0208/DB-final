@@ -6,6 +6,8 @@
 #include <string>
 #include <algorithm> 
 #include <fstream>
+#include <utility>
+
 #define NUMDIMS 2
 
 // struct Cafe {
@@ -19,6 +21,7 @@
 struct CafeLoc {
   int id;
   double lon, lat;
+  double weight = 0.0;
   CafeLoc(int id, double lon, double lat) : id(id), lon(lon), lat(lat) {}
 };
 
@@ -61,8 +64,8 @@ public:
       }
   }
 
-  std::vector<CafeLoc> search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
-    tree.LabelNodeWeight(mode_, lon, lat, weights);
+  std::pair<std::vector<CafeLoc>, std::unordered_map<int, std::unordered_map<std::string, double>>> search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
+    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = tree.LabelNodeWeight(mode_, lon, lat, weights);
     double min[2], max[2];
     bounding_box(lon, lat, r_meters, min, max);
 
@@ -88,7 +91,7 @@ public:
     // std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
     //     return a.current_crowd < b.current_crowd;
     // });
-    return result;
+    return std::make_pair(result, cafeDatas);
   }
 
   CafeSearchIterator stream_search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {

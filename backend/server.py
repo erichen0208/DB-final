@@ -1,13 +1,14 @@
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory, Blueprint
 from flask import Response, stream_with_context
 from flask_cors import CORS
 import os
 import json
+import time
 
 app = Flask(__name__)
 CORS(app)  
 
-# For RTree concept and search path improvement demo
+# For RTree visualization
 INSERT_FRAMES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frames/insert')
 SEARCH_FRAMES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frames/search')
 
@@ -37,12 +38,12 @@ def get_search_frame(search_id):
     
     return jsonify(search_data), 200
 
-# For real-time RTree demo
+# For real-time demo
 import csv
 from rtree_engine import Cafe, CafeLoc, RTreeEngine
 
 db = RTreeEngine()
-weights = {"curret_crowd": 0.5, "rating": 0.5}
+weights = {"current_crowd": 0.5, "rating": 0.5}
 cafe_file = 'csvs/cafes_100.csv'
 
 @app.route('/api/initmysql', methods=['POST'])
@@ -101,13 +102,16 @@ def search_cafes():
         def generate():
             print("Streaming started")
 
-            cafes = db.stream_search(lon, lat, radius, min_score, weights) 
+            cafeLocs, cafeDatas  = db.stream_search(lon, lat, radius, min_score, weights) 
             
-            for i, cafe in enumerate(cafes):
+            for i, cafe in enumerate(cafeLocs):
                 data = json.dumps({
                     'id': cafe.id,
                     'lat': cafe.lat,
-                    'lon': cafe.lon
+                    'lon': cafe.lon,
+                    'name': f"Cafe {cafe.id}",
+                    'rating': cafeDatas[cafe.id].rating,
+                    'current_crowd': cafeDatas[cafe.id].current_crowd
                 })
                 # print(f"Yielding cafe {i+1}: {data}")
                 yield data + '\n' 
@@ -124,25 +128,41 @@ def search_cafes():
 @app.route('/api/search/cafes/regular', methods=['GET'])
 def search_cafes_regular():
     try:
-        print(weights)
-        cafes = db.search(0, 0, 0, 0, weights)
+        required = ['lon', 'lat', 'radius', 'min_score']
+        for param in required:
+            if param not in request.args:
+                return jsonify({'error': f'Missing required parameter: {param}'}), 400
+
+        lon = float(request.args.get('lon'))
+        lat = float(request.args.get('lat'))
+        radius = float(request.args.get('radius'))
+        min_score = float(request.args.get('min_score'))
+
+        print(f"[Weights] {weights}")
         
-        # Convert results to JSON format
-        results = []
-        for cafe in cafes:
-            results.append({
-                'id': cafe.id,
-                'lat': cafe.lat,
-                'lon': cafe.lon
-            })
+        # Get all data at once using db.search
+        cafeLocs, cafeDatas = db.search(lon, lat, radius, min_score, weights)
         
-        print(f"Found {len(results)} cafes")
-        
-        return jsonify({
-            'status': 'success',
-            'count': len(results),
-            'cafes': results
-        }), 200
+        def generate():
+            print("Regular search streaming started")
+            count = 0
+            for cafe in cafeLocs:
+                count += 1
+                print(f"[DATA] {cafeDatas[cafe.id]}")
+                data = {
+                    'id': cafe.id,
+                    'lat': cafe.lat,
+                    'lon': cafe.lon,
+                    'name': f"Cafe {cafe.id}",
+                    'rating': cafeDatas[cafe.id]["rating"],
+                    'current_crowd': cafeDatas[cafe.id]["current_crowd"]
+                }
+                yield json.dumps(data) + '\n'
+            
+            print(f"Found and streamed {count} cafes")
+            print("Regular search streaming ended")
+
+        return Response(stream_with_context(generate()), mimetype='application/json')
 
     except ValueError:
         return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
