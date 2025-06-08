@@ -98,17 +98,9 @@ public:
             return scores;
         }
 
-        // std::vector<std::string> selected_fields = {"id", "lon", "lat"};
-        // for (const auto& field_weight : weights) {
-        //     selected_fields.push_back(field_weight.first);
-        // }
 
         std::stringstream ss;
         ss << "SELECT *";
-        // for (size_t i = 0; i < selected_fields.size(); ++i) {
-        //     ss << selected_fields[i];
-        //     if (i < selected_fields.size() - 1) ss << ", ";
-        // }
         ss << " FROM Cafe WHERE id IN (";
         for (size_t i = 0; i < dataIds.size(); ++i) {
             ss << dataIds[i];
@@ -128,8 +120,6 @@ public:
             mysql_close(conn);
             return scores;
         }
-
-        
 
         std::map<std::string, int> field_index;
         MYSQL_FIELD* fields = mysql_fetch_fields(res);
@@ -197,7 +187,7 @@ public:
                     double curr_lon = std::atof(row[field_index["lon"]]);
                     double curr_lat = std::atof(row[field_index["lat"]]);
                     double dist = std::sqrt(std::pow(lat - curr_lat, 2) + std::pow(lon - curr_lon, 2));
-                    score += weight * dist; // Adjust this based on your distance metric
+                    score += -weight * dist; // Adjust this based on your distance metric
                 }
                 else if (field_index.count(key) && row[field_index[key]]) {
                     double val = std::atof(row[field_index[key]]);
@@ -208,11 +198,15 @@ public:
                     if (max_val[key] > min_val[key]) {
                         norm = (val - min_val[key]) / (max_val[key] - min_val[key]);
                     }
+                    if (key == "current_crowd") {
+                        weight = -weight;
+                    }
                     score += weight * norm;
                 }
             }
 
             score_map[id] = score;
+            cafeDatas[id]["score"] = std::round(score * 1000.0) / 1000.0; 
         }
 
         mysql_free_result(res);

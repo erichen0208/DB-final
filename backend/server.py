@@ -44,7 +44,6 @@ from rtree_engine import Cafe, CafeLoc, RTreeEngine
 
 db = RTreeEngine()
 weights = {"current_crowd": 0.5, "rating": 0.5}
-cafe_file = 'csvs/cafes_100.csv'
 
 @app.route('/api/initmysql', methods=['POST'])
 def initialize_db():
@@ -56,10 +55,11 @@ def initialize_db():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/api/insert/cafes', methods=['POST'])
-def insert_cafes_from_csv():
+@app.route('/api/insert/cafes/<int:num_cafes>', methods=['POST'])
+def insert_cafes_from_csv(num_cafes):
     try:
         cafes_batch = []
+        cafe_file = f'csvs/cafes_{num_cafes}.csv'
         
         with open(cafe_file, 'r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
@@ -148,18 +148,17 @@ def search_cafes_regular():
             count = 0
             for cafe in cafeLocs:
                 count += 1
-                print(f"[DATA] {cafeDatas[cafe.id]}")
                 data = {
                     'id': cafe.id,
                     'lat': cafe.lat,
                     'lon': cafe.lon,
                     'name': f"Cafe {cafe.id}",
                     'rating': cafeDatas[cafe.id]["rating"],
-                    'current_crowd': cafeDatas[cafe.id]["current_crowd"]
+                    'current_crowd': cafeDatas[cafe.id]["current_crowd"],
+                    'score': cafeDatas[cafe.id]["score"]
                 }
                 yield json.dumps(data) + '\n'
-            
-            print(f"Found and streamed {count} cafes")
+        
             print("Regular search streaming ended")
 
         return Response(stream_with_context(generate()), mimetype='application/json')

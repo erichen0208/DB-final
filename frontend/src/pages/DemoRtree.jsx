@@ -23,6 +23,7 @@ function DemoRtree() {
   const [activeSearchNode, setActiveSearchNode] = useState(null);
   const [isSearchPathPlaying, setIsSearchPathPlaying] = useState(false);
   const [searchPathPlayInterval, setSearchPathPlayInterval] = useState(null);
+  const [searchFrameId, setSearchFrameId] = useState(0);
 
   const handleNodeHover = (nodeData) => {
     setHoveredNode(nodeData);
@@ -42,7 +43,8 @@ function DemoRtree() {
 
   const loadFrame = (frameId, currentMode = mode) => {
     setLoading(true);
-    const url = `${API_URL}/api/${currentMode}/frames/${frameId}`;
+    const actualFrameId = currentMode === "search" ? searchFrameId : frameId;
+    const url = `${API_URL}/api/${currentMode}/frames/${actualFrameId}`;
 
     axios.get(url).then((response) => {
       setFrameData(response.data);
@@ -159,6 +161,12 @@ function DemoRtree() {
     // Search paths will be set when loadFrame is called
   };
 
+  const handleSearchFrameToggle = () => {
+    const newFrameId = searchFrameId === 0 ? 1 : 0;
+    setSearchFrameId(newFrameId);
+    loadFrame(newFrameId, "search");
+  };
+
   const formatOperation = (operation, operationId) => {
     if (!operation) return "Unknown Operation";
 
@@ -213,6 +221,18 @@ function DemoRtree() {
 
                 {/* Mode Selector with Toggle Buttons */}
                 <div className="flex items-center space-x-4">
+                  {/* Search Frame Toggle Button - Only show for search mode */}
+                  {mode === "search" && (
+                    <div className="mb-3 md:mb-0">
+                      <button
+                        onClick={handleSearchFrameToggle}
+                        className="px-1 py-1 text-black rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200"
+                      >
+                        {searchFrameId === 0 ? "❅" : "ϟ"}
+                      </button>
+                    </div>
+                  )}
+
                   <div className="mb-3 md:mb-0">
                     <select
                       value={mode}
@@ -223,6 +243,7 @@ function DemoRtree() {
                       <option value="search">Search</option>
                     </select>
                   </div>
+
                   {/* Controls - Only show for insert mode */}
                   {mode === "insert" ? (
                     <div>

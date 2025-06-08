@@ -65,6 +65,7 @@ public:
   }
 
   std::pair<std::vector<CafeLoc>, std::unordered_map<int, std::unordered_map<std::string, double>>> search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
+    
     std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = tree.LabelNodeWeight(mode_, lon, lat, weights);
     double min[2], max[2];
     bounding_box(lon, lat, r_meters, min, max);
@@ -76,21 +77,6 @@ public:
     };
 
     tree.Search(min, max, callback, false, min_score);
-
-    // auto searchResult = tree.Search(min, max, callback, true, min_score);
-    // std::ofstream outFile("search_result.txt");
-    // if (outFile.is_open()) {
-    //     for (const auto& record : searchResult.second) {
-    //         outFile << "ID: " << record.id 
-    //                 << ", IsDataPoint: " << (record.isDataPoint ? "true" : "false")
-    //                 << ", Level: " << record.level 
-    //                 << ", Weight: " << record.weight << std::endl;
-    //     }
-    //     outFile.close();
-    // }
-    // std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
-    //     return a.current_crowd < b.current_crowd;
-    // });
     return std::make_pair(result, cafeDatas);
   }
 
@@ -100,7 +86,7 @@ public:
   }
 
 private:
-  std::string mode_ = "median";
+  std::string mode_ = "trimmed_mean";
   
   void bounding_box(double lon, double lat, double r_meters, double* min, double* max) {
     if (r_meters <= 0) {
@@ -143,3 +129,18 @@ inline CafeLoc CafeSearchIterator::next() {
     throw pybind11::stop_iteration();
   return results_[index_++];
 }
+
+    // auto searchResult = tree.Search(min, max, callback, true, min_score);
+    // std::ofstream outFile("search_result.txt");
+    // if (outFile.is_open()) {
+    //     for (const auto& record : searchResult.second) {
+    //         outFile << "ID: " << record.id 
+    //                 << ", IsDataPoint: " << (record.isDataPoint ? "true" : "false")
+    //                 << ", Level: " << record.level 
+    //                 << ", Weight: " << record.weight << std::endl;
+    //     }
+    //     outFile.close();
+    // }
+    // std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
+    //     return a.current_crowd < b.current_crowd;
+    // });

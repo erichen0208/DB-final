@@ -521,42 +521,7 @@ const DemoRealTime = () => {
                 </div>
               </div>
 
-              {/* Min Score */}
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">
-                  Min Score
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={searchParams.min_score}
-                    onChange={(e) =>
-                      setSearchParams((prev) => ({
-                        ...prev,
-                        min_score: parseInt(e.target.value),
-                      }))
-                    }
-                    className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={searchParams.min_score}
-                    onChange={(e) =>
-                      setSearchParams((prev) => ({
-                        ...prev,
-                        min_score: parseInt(e.target.value) || 0,
-                      }))
-                    }
-                    className="w-16 px-1 py-0.5 border rounded text-xs text-center"
-                  />
-                </div>
-              </div>
+              <div></div>
 
               {/* Crowd */}
               <div>
@@ -799,7 +764,8 @@ const DemoRealTime = () => {
                           </div>
                         </div>
                         <div className="text-right text-xs">
-                          <div className="text-yellow-600">★ {cafe.rating}</div>
+                          <div className="text-blue-600">★ {cafe.score}</div>
+                          <div className="text-yellow-400">★ {cafe.rating}</div>
                           <div
                             className={`font-medium ${
                               cafe.current_crowd > 70
@@ -862,7 +828,7 @@ const DemoRealTime = () => {
                 onClick={focusOnPosition}
                 className="bg-white bg-opacity-90 hover:bg-opacity-100 px-3 py-1 rounded border text-sm"
               >
-                📍 Focus (1km)
+                📍 Focus
               </button>
               <button
                 onClick={() => {
@@ -980,10 +946,6 @@ const DemoRealTime = () => {
             {/* Legend */}
             <div className="absolute bottom-4 left-4 bg-white bg-opacity-90 p-2 rounded text-xs">
               <div className="flex items-center space-x-3">
-                <div className="flex items-center">
-                  <div className="w-2 h-2 bg-red-500 rounded-full mr-1"></div>
-                  <span>Position</span>
-                </div>
                 <div className="flex items-center">
                   <div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></div>
                   <span>Low</span>
