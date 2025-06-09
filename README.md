@@ -1,14 +1,19 @@
 # DB Final Project
 
-## Run with docker
+## Run with Docker (Recommended)
 
 ```sh
-# Open you docker desktop
+# Open your docker desktop, build image first
 docker compose build
-docker compose up
+
+# Run containers in background
+docker compose up -d
+
+# Shut down containers
+docker compose down -v
 ```
 
-## Run with host
+## Run with Host
 
 ### Backend
 

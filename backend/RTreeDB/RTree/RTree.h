@@ -81,7 +81,7 @@ public:
     int id;               // Node or data point ID
     bool isDataPoint;     // Whether this is a data point or tree node
     int level;            // Level in the tree (-1 for data points)
-    int weight;
+    double weight;
   };
   // These constant must be declared after Branch and before Node struct
   // Stuck up here for MSVC 6 compiler.  NSVC .NET 2003 is much happier.
@@ -149,7 +149,7 @@ public:
 
   // Get complete tree structure with hierarchy information
   void LabelNodeId();
-  std::unordered_map<int, std::unordered_map<std::string, double>> LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights = {});
+  std::unordered_map<int, std::unordered_map<std::string, double>> LabelNodeWeight(const std::string& mode, const double lon, const double lat, const double r_meters, std::unordered_map<std::string, double> weights = {});
   TreeStructure GetTreeStructure() const;
 
   /// Iterator is not remove safe.
@@ -344,7 +344,7 @@ protected:
 
     // Add these custom parameters
     int m_id = -1;
-    int m_weight;
+    double m_weight;
   };
 
   /// A link list of nodes for reinsertion after a delete operation
@@ -381,7 +381,7 @@ protected:
     std::vector<ELEMTYPE> max;
     std::vector<int> childIds;
     std::vector<int> dataPointIds;
-    int weight;
+    double weight;
     DATATYPE data;  // Only meaningful for data points
   };
   struct TreeStructure {
@@ -737,7 +737,7 @@ size_t RTREE_QUAL::NNSearch(
 RTREE_TEMPLATE
 int RTREE_QUAL::Count()
 {
-  int count = 0;
+  double count = 0;
   CountRec(m_root, count);
 
   return count;
@@ -1826,7 +1826,7 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount,
   // };
 
   if (a_node->IsInternalNode()) {
-    std::vector<std::pair<int, Node*>> candidates;
+    std::vector<std::pair<double, Node*>> candidates;
     for (int index = 0; index < a_node->m_count; ++index) {
       if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
         Node* child = a_node->m_branch[index].m_child;
@@ -1849,17 +1849,14 @@ bool RTREE_QUAL::Search(Node* a_node, Rect* a_rect, int& a_foundCount,
     for (int index = 0; index < a_node->m_count; ++index) {
       if (Overlap(a_rect, &a_node->m_branch[index].m_rect)) {
         DATATYPE& data = a_node->m_branch[index].m_data;
-        int weight = 100;
-
-        if (weight >= min_score) { 
-          candidates.emplace_back(weight, data);
-        }
+        double weight = data->weight;
+        candidates.emplace_back(weight, data);
       }
     }
     std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
 
     for (const auto& pair : candidates) {
-      int weight = pair.first;
+      double weight = pair.first;
       DATATYPE id = pair.second;
       ++a_foundCount;
 
@@ -1941,14 +1938,14 @@ void RTREE_QUAL::LabelNodeId() {
 }
 
 RTREE_TEMPLATE
-std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, std::unordered_map<std::string, double> weights) {
+std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, const double r_meters, std::unordered_map<std::string, double> weights) {
     std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas;
     
     if (!m_root) {
         return cafeDatas; 
     }
 
-    std::function<int(Node*)> calculateWeight = [&](Node* node) -> int {
+    std::function<double(Node*)> calculateWeight = [&](Node* node) -> double {
         if (!node) return 0;
 
         if (node->IsLeaf()) {
@@ -1961,13 +1958,15 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
             }
 
             std::vector<double> scores;
-            scores = GetLeafNodeScores(dataIds, 121.565, 25.033, weights, cafeDatas);
+            scores = GetLeafNodeScores(dataIds, lon, lat, r_meters, weights, cafeDatas);
 
-            if (scores.empty()) {
-                node->m_weight = 0;
-            } else if (mode == "mean") {
-                int sum = 0;
-                for (int c : scores) sum += c;
+            for (int i = 0; i < node->m_count; ++i) {
+                node->m_branch[i].m_data->weight = scores[i];
+            }
+
+            if (mode == "mean") {
+                double sum = 0;
+                for (double c : scores) sum += c;
                 node->m_weight = sum / static_cast<int>(scores.size());
             } else if (mode == "median") {
                 std::sort(scores.begin(), scores.end());
@@ -1979,11 +1978,11 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
                 std::sort(scores.begin(), scores.end());
                 if (scores.size() <= 2) {
                     // Too small to trim, just take mean
-                    int sum = 0;
-                    for (int c : scores) sum += c;
+                    double sum = 0;
+                    for (double c : scores) sum += c;
                     node->m_weight = sum / static_cast<int>(scores.size());
                 } else {
-                    int sum = 0;
+                    double sum = 0;
                     for (size_t i = 1; i < scores.size() - 1; ++i) {
                         sum += scores[i];
                     }
@@ -1995,7 +1994,7 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
 
             return node->m_weight;
         } else {
-            std::vector<int> childWeights;
+            std::vector<double> childWeights;
             for (int i = 0; i < node->m_count; ++i) {
                 Node* child = node->m_branch[i].m_child;
                 if (child) {
@@ -2006,7 +2005,7 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
             if (childWeights.empty()) {
                 node->m_weight = 0;
             } else if (mode == "mean") {
-                int sum = 0;
+                double sum = 0;
                 for (int w : childWeights) sum += w;
                 node->m_weight = sum / static_cast<int>(childWeights.size());
             } else if (mode == "median") {
@@ -2018,11 +2017,11 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
             } else if (mode == "trimmed_mean") {
                 std::sort(childWeights.begin(), childWeights.end());
                 if (childWeights.size() <= 2) {
-                    int sum = 0;
-                    for (int w : childWeights) sum += w;
+                    double sum = 0;
+                    for (double w : childWeights) sum += w;
                     node->m_weight = sum / static_cast<int>(childWeights.size());
                 } else {
-                    int sum = 0;
+                    double sum = 0;
                     for (size_t i = 1; i < childWeights.size() - 1; ++i) {
                         sum += childWeights[i];
                     }

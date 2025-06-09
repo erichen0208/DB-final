@@ -43,7 +43,7 @@ import csv
 from rtree_engine import Cafe, CafeLoc, RTreeEngine
 
 db = RTreeEngine()
-weights = {"current_crowd": 0.5, "rating": 0.5}
+weights = {"rating": 0.3, "price_level": 0.2, "current_crowd": 0.8, "distance": 1.2}
 
 @app.route('/api/initmysql', methods=['POST'])
 def initialize_db():
@@ -71,6 +71,7 @@ def insert_cafes_from_csv(num_cafes):
                 cafe.rating = float(row['rating'])
                 cafe.lat = float(row['latitude']) 
                 cafe.lon = float(row['longitude'])
+                cafe.price_level = int(row['price_level'])
                 cafe.current_crowd = int(row['current_crowd'])
                 
                 cafes_batch.append(cafe)
@@ -89,7 +90,7 @@ def insert_cafes_from_csv(num_cafes):
 @app.route('/api/search/cafes', methods=['GET'])
 def search_cafes():
     try:
-        required = ['lon', 'lat', 'radius', 'min_score']
+        required = ['lon', 'lat', 'radius']
         for param in required:
             if param not in request.args:
                 return jsonify({'error': f'Missing required parameter: {param}'}), 400
@@ -97,38 +98,49 @@ def search_cafes():
         lon = float(request.args.get('lon'))
         lat = float(request.args.get('lat'))
         radius = float(request.args.get('radius'))
-        min_score = float(request.args.get('min_score'))
+        min_score = 0
+
+        print(f"[Weights] {weights}")
 
         def generate():
-            print("Streaming started")
+            print("Stream search started")
+            cafe_iterator = db.stream_search(lon, lat, radius, min_score, weights)
+            cafe_datas_map = cafe_iterator.get_cafe_datas()
+            
+            count = 0
+            for cafe_loc in cafe_iterator: 
+                count += 1
 
-            cafeLocs, cafeDatas  = db.stream_search(lon, lat, radius, min_score, weights) 
+                cafe_details = cafe_datas_map.get(cafe_loc.id, {})
+                
+                data = {
+                    'id': cafe_loc.id,
+                    'lon': cafe_loc.lon,
+                    'lat': cafe_loc.lat,
+                    'name': f"Cafe {cafe_loc.id}",
+                    'rating': cafe_details.get("rating", 0.0),
+                    'price_level': cafe_details.get("price_level", 0),
+                    'current_crowd': cafe_details.get("current_crowd", 0),
+                    'score': cafe_details.get("score", 0.0),
+                    'distance': cafe_details.get("distance", 0.0)
+                }
+                
+                yield json.dumps(data) + '\n'
             
-            for i, cafe in enumerate(cafeLocs):
-                data = json.dumps({
-                    'id': cafe.id,
-                    'lat': cafe.lat,
-                    'lon': cafe.lon,
-                    'name': f"Cafe {cafe.id}",
-                    'rating': cafeDatas[cafe.id].rating,
-                    'current_crowd': cafeDatas[cafe.id].current_crowd
-                })
-                # print(f"Yielding cafe {i+1}: {data}")
-                yield data + '\n' 
-            
-            print("Streaming ended")
+            print(f"Found and streamed {count} cafes")
+            print("Stream search ended")
 
         return Response(stream_with_context(generate()), mimetype='application/json')
 
     except ValueError:
         return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
     except Exception as e:
-        return jsonify({'error': f'Streaming search failed: {str(e)}'}), 500
+        return jsonify({'error': f'Search failed: {str(e)}'}), 500
 
 @app.route('/api/search/cafes/regular', methods=['GET'])
 def search_cafes_regular():
     try:
-        required = ['lon', 'lat', 'radius', 'min_score']
+        required = ['lon', 'lat', 'radius']
         for param in required:
             if param not in request.args:
                 return jsonify({'error': f'Missing required parameter: {param}'}), 400
@@ -136,7 +148,7 @@ def search_cafes_regular():
         lon = float(request.args.get('lon'))
         lat = float(request.args.get('lat'))
         radius = float(request.args.get('radius'))
-        min_score = float(request.args.get('min_score'))
+        min_score = 0
 
         print(f"[Weights] {weights}")
         
@@ -155,7 +167,9 @@ def search_cafes_regular():
                     'name': f"Cafe {cafe.id}",
                     'rating': cafeDatas[cafe.id]["rating"],
                     'current_crowd': cafeDatas[cafe.id]["current_crowd"],
-                    'score': cafeDatas[cafe.id]["score"]
+                    'price_level': cafeDatas[cafe.id]["price_level"],
+                    'score': cafeDatas[cafe.id]["score"],
+                    'distance': cafeDatas[cafe.id]["distance"]
                 }
                 yield json.dumps(data) + '\n'
         

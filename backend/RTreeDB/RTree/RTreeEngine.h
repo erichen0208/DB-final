@@ -7,16 +7,9 @@
 #include <algorithm> 
 #include <fstream>
 #include <utility>
+#include <filesystem>
 
 #define NUMDIMS 2
-
-// struct Cafe {
-//   int id;
-//   std::string name;
-//   double rating;
-//   double lat, lon;
-//   int current_crowd;
-// };
 
 struct CafeLoc {
   int id;
@@ -31,13 +24,20 @@ class CafeSearchIterator {
 public:
   CafeSearchIterator(RTreeEngine* engine,
                      double lon, double lat,
-                     double r_meters, double min_score, std::unordered_map<std::string, double> weights = {});
+                     double r_meters, double min_score, 
+                     const std::unordered_map<int, std::unordered_map<std::string, double>>& cafe_datas,
+                     std::unordered_map<std::string, double> weights = {});
 
   CafeLoc next();
+
+  const std::unordered_map<int, std::unordered_map<std::string, double>>& get_cafe_datas() const {
+    return cafe_datas_;
+  }
 
 private:
   std::vector<CafeLoc> results_;
   size_t index_ = 0;
+  std::unordered_map<int, std::unordered_map<std::string, double>> cafe_datas_;
 };
 
 class RTreeEngine {
@@ -65,8 +65,8 @@ public:
   }
 
   std::pair<std::vector<CafeLoc>, std::unordered_map<int, std::unordered_map<std::string, double>>> search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
-    
-    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = tree.LabelNodeWeight(mode_, lon, lat, weights);
+    tree.LabelNodeId();
+    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = tree.LabelNodeWeight(mode_, lon, lat, r_meters, weights);
     double min[2], max[2];
     bounding_box(lon, lat, r_meters, min, max);
 
@@ -76,13 +76,14 @@ public:
       return true;
     };
 
-    tree.Search(min, max, callback, false, min_score);
+    auto searchResult = tree.Search(min, max, callback, true, min_score);
+    exportSearchPath(searchResult.second);
     return std::make_pair(result, cafeDatas);
   }
 
   CafeSearchIterator stream_search(double lon, double lat, double r_meters, double min_score, std::unordered_map<std::string, double> weights = {}) {
-    tree.LabelNodeWeight(mode_, lon, lat, weights);
-    return CafeSearchIterator(this, lon, lat, r_meters, min_score);
+    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = tree.LabelNodeWeight(mode_, lon, lat, r_meters, weights);
+    return CafeSearchIterator(this, lon, lat, r_meters, min_score, cafeDatas, weights);
   }
 
 private:
@@ -90,29 +91,64 @@ private:
   
   void bounding_box(double lon, double lat, double r_meters, double* min, double* max) {
     if (r_meters <= 0) {
-        min[0] = 121.50;
-        min[1] = 25.02;
-        max[0] = 121.60;
-        max[1] = 25.10;
+        min[0] = 121.50; min[1] = 25.02;
+        max[0] = 121.60; max[1] = 25.10;
         return;
     }
 
-    double lat_radians = lat * M_PI / 180.0;
-    double r_lat = r_meters / 111000.0;
-    double r_lon = r_meters / (111320.0 * cos(lat_radians));
+    // WGS84 ellipsoid parameters for higher accuracy
+    const double a = 6378137.0;      // Semi-major axis
+    const double e2 = 0.00669437999014; // First eccentricity squared
+    
+    double lat_rad = lat * M_PI / 180.0;
+    double M = a * (1 - e2) / pow(1 - e2 * sin(lat_rad) * sin(lat_rad), 1.5);
+    double N = a / sqrt(1 - e2 * sin(lat_rad) * sin(lat_rad));
+    
+    double r_lat = r_meters / M * 180.0 / M_PI;
+    double r_lon = r_meters / (N * cos(lat_rad)) * 180.0 / M_PI;
 
-    min[0] = lon - r_lon;
-    min[1] = lat - r_lat;
-    max[0] = lon + r_lon;
-    max[1] = lat + r_lat;
+    min[0] = lon - r_lon; min[1] = lat - r_lat;
+    max[0] = lon + r_lon; max[1] = lat + r_lat;
+  }
+
+  void exportSearchPath(const std::vector<RTree<CafeLoc*, double, NUMDIMS>::SearchPathRecord> &searchPath)
+  {
+      static int search_id = 0;
+      std::string filename = "search_result.json";
+      
+      std::ofstream outFile(filename);
+      if (!outFile.is_open()) {
+        std::cerr << "Failed to open file: " << filename << std::endl;
+        return;
+      }
+      outFile << "{\n";
+      outFile << "  \"searchPaths\": [\n";
+      for (size_t i = 0; i < searchPath.size(); ++i) {
+          const auto &record = searchPath[i];
+          outFile << "    {\n";
+          outFile << "      \"id\": " << record.id << ",\n";
+          outFile << "      \"level\": " << record.level << ",\n";
+          outFile << "      \"weight\": " << record.weight << ",\n";
+          outFile << "      \"isDataPoint\": " << (record.isDataPoint ? "true" : "false") << "\n";
+          outFile << "    }";
+          if (i < searchPath.size() - 1) outFile << ",";
+          outFile << "\n";
+      }
+      outFile << "  ]\n";
+      outFile << "}\n";
+      outFile.close();
   }
 
   friend class CafeSearchIterator;
 };
 
+
 inline CafeSearchIterator::CafeSearchIterator(RTreeEngine* engine,
                                               double lon, double lat,
-                                              double r_meters, double min_score, std::unordered_map<std::string, double> weights) {
+                                              double r_meters, double min_score,
+                                              const std::unordered_map<int, std::unordered_map<std::string, double>>& cafe_datas,
+                                              std::unordered_map<std::string, double> weights)
+    : cafe_datas_(cafe_datas) {  // Initialize cafe_datas_ member
   double min[2], max[2];
   engine->bounding_box(lon, lat, r_meters, min, max);
 
@@ -129,18 +165,3 @@ inline CafeLoc CafeSearchIterator::next() {
     throw pybind11::stop_iteration();
   return results_[index_++];
 }
-
-    // auto searchResult = tree.Search(min, max, callback, true, min_score);
-    // std::ofstream outFile("search_result.txt");
-    // if (outFile.is_open()) {
-    //     for (const auto& record : searchResult.second) {
-    //         outFile << "ID: " << record.id 
-    //                 << ", IsDataPoint: " << (record.isDataPoint ? "true" : "false")
-    //                 << ", Level: " << record.level 
-    //                 << ", Weight: " << record.weight << std::endl;
-    //     }
-    //     outFile.close();
-    // }
-    // std::sort(result.begin(), result.end(), [](const Cafe& a, const Cafe& b) {
-    //     return a.current_crowd < b.current_crowd;
-    // });

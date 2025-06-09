@@ -264,7 +264,7 @@ const DemoRealTime = () => {
       const weights = {};
       if (useSliders.crowd) weights.current_crowd = searchParams.crowd;
       if (useSliders.rating) weights.rating = searchParams.rating;
-      if (useSliders.price) weights.price = searchParams.price;
+      if (useSliders.price) weights.price_level = searchParams.price;
       if (useSliders.distance) weights.distance = searchParams.distance;
 
       await fetch(`${API_URL}/api/update/weights`, {
@@ -297,7 +297,7 @@ const DemoRealTime = () => {
       });
 
       const response = await fetch(
-        `${API_URL}/api/search/cafes/regular?${queryParams}`
+        `${API_URL}/api/search/cafes?${queryParams}`
       );
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -763,9 +763,14 @@ const DemoRealTime = () => {
                             {cafe.lat?.toFixed(4)}, {cafe.lon?.toFixed(4)}
                           </div>
                         </div>
-                        <div className="text-right text-xs">
-                          <div className="text-blue-600">★ {cafe.score}</div>
-                          <div className="text-yellow-400">★ {cafe.rating}</div>
+                        <div className="text-left text-xs space-y-1">
+                          <div className="text-blue-600">📊 {cafe.score}</div>
+                          <div className="text-green-800">
+                            ↔️ {cafe.distance}
+                          </div>
+                          <div className="text-yellow-400">
+                            ⭐️ {cafe.rating}
+                          </div>
                           <div
                             className={`font-medium ${
                               cafe.current_crowd > 70
@@ -775,7 +780,7 @@ const DemoRealTime = () => {
                                 : "text-green-600"
                             }`}
                           >
-                            {cafe.current_crowd}
+                            👥 {cafe.current_crowd}
                           </div>
                         </div>
                       </div>
@@ -912,11 +917,11 @@ const DemoRealTime = () => {
                     <div
                       key={`${cafe.id}-${index}`}
                       className={`absolute w-1.5 h-1.5 rounded-full transform -translate-x-0.5 -translate-y-0.5 ${
-                        cafe.current_crowd > 70
-                          ? "bg-red-600"
-                          : cafe.current_crowd > 40
+                        cafe.score > 0.7
+                          ? "bg-green-500"
+                          : cafe.score > 0.3
                           ? "bg-yellow-500"
-                          : "bg-green-500"
+                          : "bg-red-600"
                       }`}
                       style={{
                         left: `${position.x}%`,

@@ -11,17 +11,37 @@
 #include <cmath>
 #include <cstdlib> 
 
+constexpr double EARTH_RADIUS = 6371000.0;
+
 struct Cafe {
     int id;
     std::string name;
     double lat, lon, rating;
-    int current_crowd;
+    int price_level, current_crowd;
 };
 
 class MySQLScoring {
 private:
     MYSQL* connection;
     std::string host, user, password, database;
+
+    double deg2rad(double deg) {
+        return deg * M_PI / 180.0;
+    }
+
+    double haversine(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = deg2rad(lat2 - lat1);
+        double dLon = deg2rad(lon2 - lon1);
+
+        lat1 = deg2rad(lat1);
+        lat2 = deg2rad(lat2);
+
+        double a = std::pow(std::sin(dLat / 2), 2) +
+                std::cos(lat1) * std::cos(lat2) * std::pow(std::sin(dLon / 2), 2);
+        double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
+
+        return EARTH_RADIUS * c;
+    }
     
 public:
     MySQLScoring() : connection(nullptr) {}
@@ -68,10 +88,20 @@ public:
         if (!connection) return false;
         
         for (const auto& cafe : cafes) {
-            std::string query = "INSERT INTO Cafe (id, name, rating, lat, lon, current_crowd) VALUES (" +
-                            std::to_string(cafe.id) + ", '" + cafe.name + "', " +
-                            std::to_string(cafe.rating) + ", " + std::to_string(cafe.lat) + ", " +
-                            std::to_string(cafe.lon) + ", " + std::to_string(cafe.current_crowd) + ") " +
+            std::string escaped_name = cafe.name;
+            size_t pos = 0;
+            while ((pos = escaped_name.find("'", pos)) != std::string::npos) {
+                escaped_name.replace(pos, 1, "\\'");
+                pos += 2;
+            }
+
+            // std::cout << "Cafe Price Level: " << cafe.price_level << std::endl;
+
+            std::string query = "INSERT INTO Cafe (id, name, rating, lat, lon, price_level, current_crowd) VALUES (" +
+                            std::to_string(cafe.id) + ", '" + escaped_name + "', " +
+                            std::to_string(cafe.rating) + ", " + std::to_string(cafe.lat) + ", " + 
+                            std::to_string(cafe.lon) + ", " + std::to_string(cafe.price_level) + ", " + 
+                            std::to_string(cafe.current_crowd) + ") " +
                             "ON DUPLICATE KEY UPDATE name=VALUES(name)";
             
             if (mysql_query(connection, query.c_str()) != 0) {
@@ -84,7 +114,7 @@ public:
     
     // Get scores for cafe IDs
     std::vector<double> GetLeafNodeScores(const std::vector<int>& dataIds, 
-                                double lon, double lat,
+                                const double lon, const double lat, const double r_meters,
                                 const std::unordered_map<std::string, double>& weights,
                                 std::unordered_map<int, std::unordered_map<std::string, double>>& cafeDatas) {
         std::vector<double> scores;
@@ -128,84 +158,53 @@ public:
             field_index[fields[i].name] = i;
         }
 
-        std::map<std::string, double> min_val, max_val;
-        std::map<int, std::vector<std::string>> rows_data;
-
         MYSQL_ROW row;
-        while ((row = mysql_fetch_row(res))) {
-            int id = std::atoi(row[field_index["id"]]);
-            rows_data[id] = {};
-            for (const auto& field_weight : weights) {
-                const std::string& key = field_weight.first;
-                if (field_index.count(key) && row[field_index[key]]) {
-                    double val = std::atof(row[field_index[key]]);
-                    rows_data[id].push_back(row[field_index[key]]);
-                    if (min_val.find(key) == min_val.end()) {
-                        min_val[key] = max_val[key] = val;
-                    } else {
-                        min_val[key] = std::min(min_val[key], val);
-                        max_val[key] = std::max(max_val[key], val);
-                    }
-                }
-            }
-        }
 
         mysql_data_seek(res, 0);
-        std::map<int, double> score_map;
         while ((row = mysql_fetch_row(res))) {
             int id = std::atoi(row[field_index["id"]]);
             double score = 0.0;
+            double total_weight = 0.0;
 
             for (unsigned int i = 0; i < num_fields; ++i) {
                 std::string field_name = fields[i].name;
-                
-                // Check if the field isn't NULL
+
                 if (row[i]) {
-                    // Handle numeric fields
-                    if (fields[i].type == MYSQL_TYPE_LONG || 
-                        fields[i].type == MYSQL_TYPE_FLOAT || 
-                        fields[i].type == MYSQL_TYPE_DOUBLE || 
-                        fields[i].type == MYSQL_TYPE_DECIMAL) {
-                        cafeDatas[id][field_name] = std::atof(row[i]);
-                    } 
-                    else {
-                        cafeDatas[id][field_name] = 0.0;  
-                        if (field_name == "name") {
-                            cafeDatas[id][field_name] = std::atof(row[i]);
-                        }
-                    }
+                    cafeDatas[id][field_name] = std::atof(row[i]);
                 }
             }
-
+            
             for (const auto& field_weight : weights) {
 
                 const std::string& key = field_weight.first;
                 double weight = field_weight.second;
-
+                double norm = 0.0;
+                
                 if (key == "distance") {
-                    // Calculate distance score based on lon/lat
                     double curr_lon = std::atof(row[field_index["lon"]]);
                     double curr_lat = std::atof(row[field_index["lat"]]);
-                    double dist = std::sqrt(std::pow(lat - curr_lat, 2) + std::pow(lon - curr_lon, 2));
-                    score += -weight * dist; // Adjust this based on your distance metric
-                }
-                else if (field_index.count(key) && row[field_index[key]]) {
-                    double val = std::atof(row[field_index[key]]);
 
-                    cafeDatas[id][key] = val;
-
-                    double norm = 0.0;
-                    if (max_val[key] > min_val[key]) {
-                        norm = (val - min_val[key]) / (max_val[key] - min_val[key]);
-                    }
-                    if (key == "current_crowd") {
-                        weight = -weight;
-                    }
-                    score += weight * norm;
+                    double dist_meters = haversine(lat, lon, curr_lat, curr_lon);
+                    norm = 1 - (dist_meters / (r_meters * 2));
+                    cafeDatas[id]["distance"] = std::round(dist_meters); 
                 }
+                else if (key == "rating") {
+                    norm = std::atof(row[field_index[key]]);
+                    norm = (norm - 3.0) / 2.0;
+                } 
+                else if (key == "price_level") {
+                    norm = std::atof(row[field_index[key]]);
+                    norm = 1 - (norm / 5.0);
+                }
+                else if (key == "current_crowd") {
+                    norm = std::atof(row[field_index[key]]);
+                    norm = 1 - (norm / 100.0); 
+                }
+                score += norm * weight;
+                total_weight += weight;
             }
 
-            score_map[id] = score;
+            score = total_weight > 0 ? score / total_weight : score;
             cafeDatas[id]["score"] = std::round(score * 1000.0) / 1000.0; 
         }
 
@@ -213,7 +212,7 @@ public:
         mysql_close(conn);
 
         for (int id : dataIds) {
-            scores.push_back(score_map.count(id) ? score_map[id] : -9999.0);
+            scores.push_back(cafeDatas[id]["score"]);
         }
 
         return scores;    
@@ -230,10 +229,10 @@ bool insert_cafes_to_mysql(const std::vector<Cafe>& cafes) {
     return mysql_db.insert_cafes_to_mysql(cafes);
 }
 
-std::vector<double> GetLeafNodeScores(const std::vector<int>& dataIds, double lon, double lat, 
+std::vector<double> GetLeafNodeScores(const std::vector<int>& dataIds, const double lon, const double lat, const double r_meters,
                                       const std::unordered_map<std::string, double>& weights,
                                     std::unordered_map<int, std::unordered_map<std::string, double>>& cafeDatas) {
-    return mysql_db.GetLeafNodeScores(dataIds, lon, lat, weights, cafeDatas);
+    return mysql_db.GetLeafNodeScores(dataIds, lon, lat, r_meters, weights, cafeDatas);
 }
 
 #endif // SCORING_H

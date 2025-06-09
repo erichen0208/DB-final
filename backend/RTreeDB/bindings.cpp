@@ -13,6 +13,7 @@ PYBIND11_MODULE(rtree_engine, m) {
         .def_readwrite("rating", &Cafe::rating)
         .def_readwrite("lat", &Cafe::lat)
         .def_readwrite("lon", &Cafe::lon)
+        .def_readwrite("price_level", &Cafe::price_level)
         .def_readwrite("current_crowd", &Cafe::current_crowd);
 
     py::class_<CafeLoc>(m, "CafeLoc")
@@ -30,5 +31,8 @@ PYBIND11_MODULE(rtree_engine, m) {
 
     py::class_<CafeSearchIterator>(m, "CafeSearchIterator")
         .def("__iter__", [](CafeSearchIterator &self) -> CafeSearchIterator& { return self; })
-        .def("__next__", &CafeSearchIterator::next);
+        .def("__next__", &CafeSearchIterator::next)
+        .def("get_cafe_datas", &CafeSearchIterator::get_cafe_datas, 
+             py::return_value_policy::reference_internal,
+             "Get the cafe data map");
 }
