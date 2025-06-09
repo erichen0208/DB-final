@@ -13,7 +13,7 @@ docker compose up -d
 docker compose down -v
 ```
 
-- After the container is running successfully, do the below setup
+- After the container is running successfully (should wait a second), do the below initialization:
 
 ```sh
 # Initialize mysql

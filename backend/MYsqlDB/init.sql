@@ -16,3 +16,15 @@ CREATE TABLE IF NOT EXISTS Cafe (
 -- Docker already created the user, just grant privileges
 GRANT ALL PRIVILEGES ON cafeDB.* TO 'user'@'%';
 FLUSH PRIVILEGES;
+
+DELIMITER $$
+
+CREATE EVENT IF NOT EXISTS update_crowd_every_1min
+ON SCHEDULE EVERY 1 MINUTE
+DO
+BEGIN
+    UPDATE Cafe
+    SET current_crowd = FLOOR(RAND() * 101);
+END$$
+
+DELIMITER ;
