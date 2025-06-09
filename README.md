@@ -13,7 +13,19 @@ docker compose up -d
 docker compose down -v
 ```
 
-## Run with Host
+- After the container is running successfully, do the below setup
+
+```sh
+# Initialize mysql
+curl -X POST http://localhost:5000/api/initmysql
+
+# Insert cafes, choices = [100, 10000, 1000000]
+curl -X POST http://localhost:5000/api/insert/cafes/100
+```
+
+- And now, you can go to browser, using `http://localhost:5173/` for demo !
+
+## Alterative: Run with Host (Non Recommended, and haven't test yet)
 
 ### Backend
 

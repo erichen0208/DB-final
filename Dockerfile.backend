@@ -31,16 +31,7 @@ COPY backend/ .
 # Create mysql symlink for compatibility
 RUN rm -rf /usr/include/mysql && ln -sf /usr/include/mariadb /usr/include/mysql
 
-# Build the C++ module with cmake
-# RUN if [ -d "RTreeDB" ]; then \
-#     cd RTreeDB && \
-#     rm -rf build && \
-#     mkdir -p build && cd build && \
-#     cmake .. && \
-#     make -j$(nproc) && \
-#     cp *.so /app/ && \
-#     echo "✅ Built .so files:" && ls -la /app/*.so; \
-#     else echo "❌ RTreeDB directory not found."; fi
+# RUN chmod +x ./build_rtree.sh && ./build_rtree.sh
 
 # Set environment variables for MySQL connection
 ENV MYSQL_HOST=db
