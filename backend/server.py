@@ -1,9 +1,11 @@
-from flask import Flask, jsonify, request, send_from_directory, Blueprint
+from flask import Flask, jsonify, request
 from flask import Response, stream_with_context
 from flask_cors import CORS
 import os
 import json
 import time
+import queue
+import threading
 
 app = Flask(__name__)
 CORS(app)  
@@ -100,37 +102,77 @@ def search_cafes():
         radius = float(request.args.get('radius'))
         min_score = 0
 
-        print(f"[Weights] {weights}")
+        # Create a thread-safe queue
+        result_queue = queue.Queue()
+        search_complete = threading.Event()
+
+        def cafe_callback(cafe_loc, cafe_details):
+            """Callback function called by C++ for each found cafe"""
+            data = {
+                'id': cafe_loc.id,
+                'lon': cafe_loc.lon,
+                'lat': cafe_loc.lat,
+                'name': f"Cafe {cafe_loc.id}",
+                'rating': cafe_details.get("rating", 0.0),
+                'price_level': cafe_details.get("price_level", 0),
+                'current_crowd': cafe_details.get("current_crowd", 0),
+                'score': cafe_details.get("score", 0.0),
+                'distance': cafe_details.get("distance", 0.0)
+            }
+            result_queue.put(data)
+
+        def search_thread():
+            """Run the search in a separate thread"""
+            try:
+                db.stream_search(lon, lat, radius, min_score, weights, cafe_callback)
+            except Exception as e:
+                result_queue.put({'error': str(e)})
+            finally:
+                search_complete.set()
 
         def generate():
-            print("Stream search started")
-            cafe_iterator = db.stream_search(lon, lat, radius, min_score, weights)
-            cafe_datas_map = cafe_iterator.get_cafe_datas()
+            start_time = time.time()
+            
+            # Start search in background thread
+            thread = threading.Thread(target=search_thread)
+            thread.start()
             
             count = 0
-            for cafe_loc in cafe_iterator: 
-                count += 1
-
-                cafe_details = cafe_datas_map.get(cafe_loc.id, {})
-                
-                data = {
-                    'id': cafe_loc.id,
-                    'lon': cafe_loc.lon,
-                    'lat': cafe_loc.lat,
-                    'name': f"Cafe {cafe_loc.id}",
-                    'rating': cafe_details.get("rating", 0.0),
-                    'price_level': cafe_details.get("price_level", 0),
-                    'current_crowd': cafe_details.get("current_crowd", 0),
-                    'score': cafe_details.get("score", 0.0),
-                    'distance': cafe_details.get("distance", 0.0)
-                }
-                
-                yield json.dumps(data) + '\n'
+            while True:
+                try:
+                    # Wait for next item with timeout
+                    data = result_queue.get(timeout=1.0)
+                    
+                    if 'error' in data:
+                        yield json.dumps({'error': data['error']}) + '\n'
+                        break
+                    
+                    count += 1
+                    if count == 1:
+                        print(f"[First Result Time (Optimization)] {time.time() - start_time:.3f}s")
+                    
+                    yield json.dumps(data) + '\n'
+                    
+                except queue.Empty:
+                    # Check if search is complete
+                    if search_complete.is_set():
+                        break
+                    # Otherwise continue waiting
+                    continue
             
+            thread.join()  # Wait for search thread to complete
             print(f"Found and streamed {count} cafes")
-            print("Stream search ended")
 
-        return Response(stream_with_context(generate()), mimetype='application/json')
+        response = Response(
+            stream_with_context(generate()),
+            mimetype='application/json',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no'
+            }
+        )
+        return response
 
     except ValueError:
         return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400
@@ -150,16 +192,18 @@ def search_cafes_regular():
         radius = float(request.args.get('radius'))
         min_score = 0
 
-        print(f"[Weights] {weights}")
+        # print(f"[Weights] {weights}")
+        start_time = time.time()
         
         # Get all data at once using db.search
         cafeLocs, cafeDatas = db.search(lon, lat, radius, min_score, weights)
         
         def generate():
-            print("Regular search streaming started")
             count = 0
             for cafe in cafeLocs:
                 count += 1
+                if count == 1:
+                    print(f"[First Result Time (Regular)] {time.time() - start_time:.3f}s")
                 data = {
                     'id': cafe.id,
                     'lat': cafe.lat,
@@ -172,10 +216,19 @@ def search_cafes_regular():
                     'distance': cafeDatas[cafe.id]["distance"]
                 }
                 yield json.dumps(data) + '\n'
-        
-            print("Regular search streaming ended")
 
-        return Response(stream_with_context(generate()), mimetype='application/json')
+            print(f"Found and streamed {count} cafes")
+
+        response = Response(
+            stream_with_context(generate()), 
+            mimetype='application/json',
+            headers={
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'X-Accel-Buffering': 'no' 
+            }
+        )
+        return response
 
     except ValueError:
         return jsonify({'error': 'Invalid parameter format. All parameters must be numbers.'}), 400

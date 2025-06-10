@@ -18,6 +18,8 @@
 #include <map>
 #include <limits>
 
+#include <thread>
+#include <future>
 #include <unordered_map>
 #include "../../MYsqlDB/Scoring.h"
 
@@ -1939,11 +1941,20 @@ void RTREE_QUAL::LabelNodeId() {
 
 RTREE_TEMPLATE
 std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::LabelNodeWeight(const std::string& mode, const double lon, const double lat, const double r_meters, std::unordered_map<std::string, double> weights) {
-    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas;
-    
+    // std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas;
+    // std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas = GetAllCafeData(lon, lat, r_meters);
+
     if (!m_root) {
-        return cafeDatas; 
+        return {}; 
     }
+
+    std::future<std::unordered_map<int, std::unordered_map<std::string, double>>> cafeDataFuture = 
+        std::async(std::launch::async, [=]() {
+            return GetAllCafeData(lon, lat, r_meters);
+        });
+
+    std::unordered_map<int, std::unordered_map<std::string, double>> cafeDatas;
+    bool dataReady = false;
 
     std::function<double(Node*)> calculateWeight = [&](Node* node) -> double {
         if (!node) return 0;
@@ -1957,8 +1968,12 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
                 }
             }
 
-            std::vector<double> scores;
-            scores = GetLeafNodeScores(dataIds, lon, lat, r_meters, weights, cafeDatas);
+            if (!dataReady) {
+                cafeDatas = cafeDataFuture.get(); // Wait for background fetch to complete
+                dataReady = true;
+            }
+
+            std::vector<double> scores = GetLeafNodeScores(dataIds, lon, lat, r_meters, weights, cafeDatas);
 
             for (int i = 0; i < node->m_count; ++i) {
                 node->m_branch[i].m_data->weight = scores[i];
@@ -2037,6 +2052,9 @@ std::unordered_map<int, std::unordered_map<std::string, double>> RTREE_QUAL::Lab
 
     calculateWeight(m_root);
 
+    if (!dataReady) {
+        cafeDatas = cafeDataFuture.get();
+    }
     return cafeDatas;
 }
 

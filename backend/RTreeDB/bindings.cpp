@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/operators.h>
+#include <pybind11/functional.h>
 #include "RTree/RTreeEngine.h"
 
 namespace py = pybind11;
@@ -29,10 +30,11 @@ PYBIND11_MODULE(rtree_engine, m) {
         .def("search", &RTreeEngine::search)
         .def("stream_search", &RTreeEngine::stream_search);
 
-    py::class_<CafeSearchIterator>(m, "CafeSearchIterator")
-        .def("__iter__", [](CafeSearchIterator &self) -> CafeSearchIterator& { return self; })
-        .def("__next__", &CafeSearchIterator::next)
-        .def("get_cafe_datas", &CafeSearchIterator::get_cafe_datas, 
-             py::return_value_policy::reference_internal,
-             "Get the cafe data map");
+
+    // py::class_<CafeSearchIterator>(m, "CafeSearchIterator")
+    //     .def("__iter__", [](CafeSearchIterator &self) -> CafeSearchIterator& { return self; })
+    //     .def("__next__", &CafeSearchIterator::next)
+    //     .def("get_cafe_datas", &CafeSearchIterator::get_cafe_datas, 
+    //          py::return_value_policy::reference_internal,
+    //          "Get the cafe data map");
 }
